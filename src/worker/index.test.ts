@@ -127,6 +127,12 @@ describe("Copy Check Worker", () => {
         }),
       )
       .mockResolvedValueOnce(
+        new Response("Second fallback unavailable", {
+          status: 503,
+          headers: { "Retry-After": "0" },
+        }),
+      )
+      .mockResolvedValueOnce(
         new Response(
           JSON.stringify({
             status: "completed",
@@ -149,7 +155,7 @@ describe("Copy Check Worker", () => {
     await expect(response.json()).resolves.toEqual({
       findings: [modelOutput.findings[0]],
     });
-    expect(fetchMock).toHaveBeenCalledTimes(4);
+    expect(fetchMock).toHaveBeenCalledTimes(5);
 
     const requestInit = fetchMock.mock.calls[0]?.[1];
     const headers = new Headers(requestInit?.headers);
@@ -158,13 +164,17 @@ describe("Copy Check Worker", () => {
     const primaryBody = JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body));
     const retryBody = JSON.parse(String(fetchMock.mock.calls[1]?.[1]?.body));
     const fallbackBody = JSON.parse(String(fetchMock.mock.calls[2]?.[1]?.body));
-    const finalFallbackBody = JSON.parse(
+    const secondFallbackBody = JSON.parse(
       String(fetchMock.mock.calls[3]?.[1]?.body),
+    );
+    const finalFallbackBody = JSON.parse(
+      String(fetchMock.mock.calls[4]?.[1]?.body),
     );
     expect(primaryBody.model).toBe("gemini-3.8-flash");
     expect(retryBody.model).toBe("gemini-3.8-flash");
     expect(fallbackBody.model).toBe("gemini-3.7-flash");
-    expect(finalFallbackBody.model).toBe("gemini-3.6-flash");
+    expect(secondFallbackBody.model).toBe("gemini-3.6-flash");
+    expect(finalFallbackBody.model).toBe("gemini-3.5-flash");
   });
 
   it("rejects malformed Gemini output", async () => {
