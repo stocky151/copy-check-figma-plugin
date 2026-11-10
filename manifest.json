@@ -6,6 +6,8 @@
   "ui": "dist/index.html",
   "documentAccess": "dynamic-page",
   "networkAccess": {
-    "allowedDomains": ["none"]
+    "allowedDomains": [
+      "https://copy-check-api.copy-check-figma-plugin.workers.dev"
+    ]
   }
 }

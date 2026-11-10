@@ -87,9 +87,29 @@ h2 {
 }
 
 .secondary-button:focus-visible,
-.result-row:focus-visible {
+.primary-button:focus-visible,
+.result-row:focus-visible,
+.finding-target:focus-visible {
   outline: 2px solid var(--figma-color-border-brand-strong, #0d99ff);
   outline-offset: 2px;
+}
+
+.primary-button {
+  width: 100%;
+  min-height: 40px;
+  margin-bottom: 18px;
+  padding: 0 16px;
+  border: 0;
+  border-radius: 8px;
+  color: var(--figma-color-text-onbrand, #ffffff);
+  background: var(--figma-color-bg-brand, #0d99ff);
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.primary-button:hover {
+  background: var(--figma-color-bg-brand-hover, #0c8ce9);
 }
 
 .scan-summary {
@@ -224,6 +244,111 @@ h2 {
 
 .message-state--error {
   border-color: var(--figma-color-border-danger, #f24822);
+}
+
+.message-state--success {
+  border-color: var(--figma-color-border-success, #14ae5c);
+}
+
+.success-icon {
+  display: grid;
+  width: 24px;
+  height: 24px;
+  place-items: center;
+  margin: 0 auto 10px;
+  border-radius: 50%;
+  color: var(--figma-color-icon-onsuccess, #ffffff);
+  background: var(--figma-color-bg-success, #14ae5c);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.audit-state {
+  margin-top: 2px;
+}
+
+.findings-heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.findings-heading .section-label {
+  margin-bottom: 0;
+}
+
+.finding-count {
+  color: var(--figma-color-text-secondary, #6b6b6b);
+  font-size: 10px;
+}
+
+.finding-group {
+  overflow: hidden;
+  margin-bottom: 12px;
+  border: 1px solid var(--figma-color-border, #e5e5e5);
+  border-radius: 9px;
+  background: var(--figma-color-bg, #ffffff);
+}
+
+.finding-target {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px;
+  border: 0;
+  background: var(--figma-color-bg-secondary, #f7f7f7);
+  cursor: pointer;
+  text-align: left;
+}
+
+.finding-target:hover {
+  background: var(--figma-color-bg-hover, #f2f2f2);
+}
+
+.finding-detail {
+  padding: 12px;
+  border-top: 1px solid var(--figma-color-border, #e5e5e5);
+}
+
+.rule-label {
+  margin-bottom: 7px;
+  color: var(--figma-color-text-brand, #0d99ff);
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 1.4;
+  text-transform: uppercase;
+}
+
+.finding-issue {
+  margin-bottom: 10px;
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.suggestion {
+  padding: 9px 10px;
+  border-radius: 6px;
+  background: var(--figma-color-bg-brand-tertiary, #e5f4ff);
+}
+
+.suggestion span {
+  display: block;
+  margin-bottom: 4px;
+  color: var(--figma-color-text-secondary, #6b6b6b);
+  font-size: 9px;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.suggestion p {
+  margin-bottom: 0;
+  color: var(--figma-color-text, #1e1e1e);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.4;
 }
 
 .spinner {

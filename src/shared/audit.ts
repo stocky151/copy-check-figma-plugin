@@ -21,6 +21,31 @@ export type AuditResponse = {
   findings: Finding[];
 };
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+function isFinding(value: unknown): value is Finding {
+  if (!isRecord(value)) {
+    return false;
+  }
+
+  return (
+    typeof value.nodeId === "string" &&
+    typeof value.guidelineId === "string" &&
+    typeof value.issue === "string" &&
+    typeof value.suggestion === "string"
+  );
+}
+
+export function isAuditResponse(value: unknown): value is AuditResponse {
+  return (
+    isRecord(value) &&
+    Array.isArray(value.findings) &&
+    value.findings.every(isFinding)
+  );
+}
+
 export const STARTER_GUIDELINES: readonly Guideline[] = [
   { id: "g1", rule: "Use sentence case for buttons, headings, and labels." },
   { id: "g2", rule: "Start button labels with a verb." },
