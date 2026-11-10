@@ -7,11 +7,15 @@
   "scripts": {
     "build": "npm run typecheck && vite build && npm run build:plugin",
     "build:plugin": "esbuild src/plugin/code.ts --bundle --format=iife --target=es2020 --outfile=dist/code.js",
-    "typecheck": "tsc --noEmit -p tsconfig.plugin.json && tsc --noEmit -p tsconfig.ui.json && tsc --noEmit -p tsconfig.node.json"
+    "test": "vitest run --root .",
+    "typecheck": "tsc --noEmit -p tsconfig.plugin.json && tsc --noEmit -p tsconfig.ui.json && tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.worker.json",
+    "worker:deploy": "wrangler deploy",
+    "worker:dev": "wrangler dev"
   },
   "dependencies": {
     "react": "^19.3.1",
-    "react-dom": "^19.3.1"
+    "react-dom": "^19.3.1",
+    "zod": "^4.6.7"
   },
   "devDependencies": {
     "@figma/plugin-typings": "^1.142.0",
@@ -22,6 +26,13 @@
     "esbuild": "^0.28.2",
     "typescript": "^7.0.2",
     "vite": "^8.3.7",
-    "vite-plugin-singlefile": "^2.3.4"
+    "vite-plugin-singlefile": "^2.3.4",
+    "vitest": "^5.1.0",
+    "wrangler": "^4.160.0"
+  },
+  "allowScripts": {
+    "esbuild@0.28.2": true,
+    "workerd@1.20261110.1": true,
+    "fsevents@2.3.3": true
   }
 }

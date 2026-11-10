@@ -34,6 +34,27 @@ The plugin main thread can read and edit the Figma document, but it cannot use b
 
 The Cloudflare Worker and Gemini audit will be added after the local scan workflow is verified.
 
+## Worker development
+
+The Worker exposes two routes:
+
+- `GET /health` confirms that the service is running.
+- `POST /audit` validates text items and guidelines before calling Gemini.
+
+Run the automated tests without using a real Gemini key:
+
+```bash
+npm test
+```
+
+Start the Worker locally:
+
+```bash
+npm run worker:dev
+```
+
+The Gemini key is a server-side secret. It must never be placed in source code or committed to Git.
+
 ## Source specification
 
 The working scope is documented in [Copy Check Figma plugin spec.md](./Copy%20Check%20Figma%20plugin%20spec.md).

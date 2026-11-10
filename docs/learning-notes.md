@@ -39,3 +39,21 @@ Mixed-font or missing-font layers are marked as not editable. Reading their text
 ### Build output
 
 Vite bundles React, application code, and CSS into one `dist/index.html` file. esbuild bundles the plugin main thread into `dist/code.js`. The Figma manifest points to those two generated files.
+
+## Worker foundation
+
+### Cloudflare Workers and Wrangler
+
+A Cloudflare Worker is server-side JavaScript that runs on Cloudflare's network. Wrangler is the command-line tool that runs the Worker locally, manages secrets, and deploys it. The Worker protects the Gemini key because the React panel never receives that secret.
+
+### HTTP routes
+
+`GET /health` returns a small response proving that the Worker is available. `POST /audit` accepts JSON containing text items and guidelines. `OPTIONS /audit` answers the browser's CORS preflight request.
+
+### Runtime validation with Zod
+
+TypeScript checks our source code but cannot prove that network data is valid at runtime. Zod defines executable schemas for requests and model responses. The Worker rejects oversized or malformed requests before calling Gemini and rejects malformed Gemini output before returning it to Figma.
+
+### Gemini structured output
+
+The Worker asks Gemini's Interactions API for JSON matching a specific schema. Structured output makes the response more predictable, but the Worker still validates it. Findings with node or guideline IDs absent from the original request are dropped before they can reach the plugin.

@@ -1,0 +1,9 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "copy-check-api",
+  "main": "src/worker/index.ts",
+  "compatibility_date": "2026-11-10",
+  "observability": {
+    "enabled": true
+  }
+}

@@ -1,0 +1,4 @@
+# Wrangler reads local secrets from .dev.vars.
+# Copy this file to .dev.vars and replace the value only for local development.
+# Never commit .dev.vars.
+GEMINI_API_KEY=replace-with-a-local-development-key
