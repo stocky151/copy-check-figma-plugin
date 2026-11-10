@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   isAuditResponse,
   STARTER_GUIDELINES,
@@ -59,6 +59,10 @@ export function App() {
   const [source, setSource] = useState<ScanSource>("page");
   const [scanError, setScanError] = useState("");
   const [auditError, setAuditError] = useState("");
+  const [applyError, setApplyError] = useState("");
+  const [applyingNodeId, setApplyingNodeId] = useState<string | null>(null);
+  const [appliedNodeIds, setAppliedNodeIds] = useState<Set<string>>(new Set());
+  const pendingApply = useRef<{ nodeId: string; text: string } | null>(null);
 
   const requestScan = useCallback(() => {
     setScanStatus("loading");
@@ -66,6 +70,10 @@ export function App() {
     setFindings([]);
     setScanError("");
     setAuditError("");
+    setApplyError("");
+    setApplyingNodeId(null);
+    setAppliedNodeIds(new Set());
+    pendingApply.current = null;
     sendToPlugin({ type: "scan" });
   }, []);
 
@@ -78,8 +86,40 @@ export function App() {
       }
 
       if (pluginMessage.type === "error") {
+        if (pendingApply.current !== null) {
+          setApplyError(pluginMessage.message);
+          setApplyingNodeId(null);
+          pendingApply.current = null;
+          return;
+        }
+
         setScanStatus("error");
         setScanError(pluginMessage.message);
+        return;
+      }
+
+      if (pluginMessage.type === "applied") {
+        const applied = pendingApply.current;
+        if (applied === null || applied.nodeId !== pluginMessage.nodeId) {
+          setApplyError("Copy Check received an unexpected edit confirmation.");
+          setApplyingNodeId(null);
+          pendingApply.current = null;
+          return;
+        }
+
+        setItems((currentItems) =>
+          currentItems.map((item) =>
+            item.id === applied.nodeId ? { ...item, text: applied.text } : item,
+          ),
+        );
+        setAppliedNodeIds((currentIds) => {
+          const nextIds = new Set(currentIds);
+          nextIds.add(applied.nodeId);
+          return nextIds;
+        });
+        setApplyError("");
+        setApplyingNodeId(null);
+        pendingApply.current = null;
         return;
       }
 
@@ -98,9 +138,25 @@ export function App() {
     sendToPlugin({ type: "select", nodeId });
   }
 
+  function applyFinding(finding: Finding) {
+    pendingApply.current = {
+      nodeId: finding.nodeId,
+      text: finding.suggestion,
+    };
+    setApplyError("");
+    setApplyingNodeId(finding.nodeId);
+    sendToPlugin({
+      type: "apply",
+      nodeId: finding.nodeId,
+      text: finding.suggestion,
+    });
+  }
+
   async function checkCopy() {
     setAuditStatus("loading");
     setAuditError("");
+    setApplyError("");
+    setAppliedNodeIds(new Set());
     setFindings([]);
 
     try {
@@ -141,7 +197,13 @@ export function App() {
     findingsByNodeId.set(finding.nodeId, nodeFindings);
   }
 
-  const busy = scanStatus === "loading" || auditStatus === "loading";
+  const activeFindingCount = findings.filter(
+    (finding) => !appliedNodeIds.has(finding.nodeId),
+  ).length;
+  const busy =
+    scanStatus === "loading" ||
+    auditStatus === "loading" ||
+    applyingNodeId !== null;
 
   return (
     <main className="app-shell">
@@ -196,7 +258,12 @@ export function App() {
           ) : (
             <>
               {auditStatus !== "loading" && (
-                <button className="primary-button" onClick={checkCopy} type="button">
+                <button
+                  className="primary-button"
+                  disabled={applyingNodeId !== null}
+                  onClick={checkCopy}
+                  type="button"
+                >
                   {auditStatus === "success" ? "Check again" : "Check copy"}
                 </button>
               )}
@@ -266,9 +333,16 @@ export function App() {
                   <div className="findings-heading">
                     <p className="section-label">Findings</p>
                     <span className="finding-count">
-                      {findings.length} {findings.length === 1 ? "issue" : "issues"}
+                      {activeFindingCount}{" "}
+                      {activeFindingCount === 1 ? "issue" : "issues"} remaining
                     </span>
                   </div>
+
+                  {applyError.length > 0 && (
+                    <div className="inline-error" role="alert">
+                      {applyError}
+                    </div>
+                  )}
 
                   {items.map((item) => {
                     const nodeFindings = findingsByNodeId.get(item.id);
@@ -276,8 +350,13 @@ export function App() {
                       return null;
                     }
 
+                    const isApplied = appliedNodeIds.has(item.id);
+
                     return (
-                      <article className="finding-group" key={item.id}>
+                      <article
+                        className={`finding-group${isApplied ? " finding-group--applied" : ""}`}
+                        key={item.id}
+                      >
                         <button
                           className="finding-target"
                           onClick={() => selectLayer(item.id)}
@@ -292,7 +371,17 @@ export function App() {
                           </span>
                         </button>
 
-                        {nodeFindings.map((finding) => {
+                        {isApplied ? (
+                          <div className="applied-confirmation" aria-live="polite">
+                            <span className="applied-check" aria-hidden="true">
+                              ✓
+                            </span>
+                            <div>
+                              <strong>Rewrite applied</strong>
+                              <p>Use Figma’s Undo command to reverse this change.</p>
+                            </div>
+                          </div>
+                        ) : nodeFindings.map((finding) => {
                           const guideline = STARTER_GUIDELINES.find(
                             (candidate) => candidate.id === finding.guidelineId,
                           );
@@ -308,8 +397,22 @@ export function App() {
                               </p>
                               <p className="finding-issue">{finding.issue}</p>
                               <div className="suggestion">
-                                <span>Suggested rewrite</span>
-                                <p>{finding.suggestion}</p>
+                                <div>
+                                  <span>Suggested rewrite</span>
+                                  <p>{finding.suggestion}</p>
+                                </div>
+                                {item.editable ? (
+                                  <button
+                                    className="apply-button"
+                                    disabled={applyingNodeId !== null}
+                                    onClick={() => applyFinding(finding)}
+                                    type="button"
+                                  >
+                                    {applyingNodeId === item.id ? "Applying…" : "Apply"}
+                                  </button>
+                                ) : (
+                                  <span className="manual-badge">Apply manually</span>
+                                )}
                               </div>
                             </div>
                           );

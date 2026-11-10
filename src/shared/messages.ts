@@ -9,7 +9,8 @@ export type ScanSource = "selection" | "page";
 
 export type UiToPluginMessage =
   | { type: "scan" }
-  | { type: "select"; nodeId: string };
+  | { type: "select"; nodeId: string }
+  | { type: "apply"; nodeId: string; text: string };
 
 export type PluginToUiMessage =
   | {
@@ -17,6 +18,7 @@ export type PluginToUiMessage =
       items: TextItem[];
       source: ScanSource;
     }
+  | { type: "applied"; nodeId: string }
   | { type: "error"; message: string };
 
 export function isUiToPluginMessage(
@@ -30,6 +32,16 @@ export function isUiToPluginMessage(
 
   if (candidate.type === "scan") {
     return true;
+  }
+
+  if (candidate.type === "apply") {
+    return (
+      typeof candidate.nodeId === "string" &&
+      candidate.nodeId.length > 0 &&
+      typeof candidate.text === "string" &&
+      candidate.text.length > 0 &&
+      candidate.text.length <= 2_000
+    );
   }
 
   return candidate.type === "select" && typeof candidate.nodeId === "string";
@@ -60,6 +72,10 @@ export function isPluginToUiMessage(
 
   if (candidate.type === "error") {
     return typeof candidate.message === "string";
+  }
+
+  if (candidate.type === "applied") {
+    return typeof candidate.nodeId === "string";
   }
 
   return (

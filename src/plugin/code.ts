@@ -74,6 +74,29 @@ async function selectNode(nodeId: string) {
   figma.viewport.scrollAndZoomIntoView([node]);
 }
 
+async function applyRewrite(nodeId: string, text: string) {
+  const node = await figma.getNodeByIdAsync(nodeId);
+
+  if (node === null || node.type !== "TEXT") {
+    throw new Error("That text layer is no longer available.");
+  }
+
+  if (node.hasMissingFont) {
+    throw new Error("This layer uses a missing font and must be edited manually.");
+  }
+
+  if (node.fontName === figma.mixed) {
+    throw new Error("This layer uses mixed fonts and must be edited manually.");
+  }
+
+  await figma.loadFontAsync(node.fontName);
+  node.characters = text;
+  figma.commitUndo();
+
+  figma.currentPage.selection = [node];
+  figma.viewport.scrollAndZoomIntoView([node]);
+}
+
 function sendError(error: unknown) {
   const message =
     error instanceof Error ? error.message : "Copy Check encountered an error.";
@@ -93,6 +116,16 @@ figma.ui.onmessage = async (message: unknown) => {
       const response: PluginToUiMessage = {
         type: "scan-result",
         ...result,
+      };
+      figma.ui.postMessage(response);
+      return;
+    }
+
+    if (message.type === "apply") {
+      await applyRewrite(message.nodeId, message.text);
+      const response: PluginToUiMessage = {
+        type: "applied",
+        nodeId: message.nodeId,
       };
       figma.ui.postMessage(response);
       return;
