@@ -28,6 +28,14 @@ React builds the panel interface from components. `App.tsx` stores connection st
 
 The two environments exchange messages. Those message shapes live in `src/shared/messages.ts` so both sides agree on the contract.
 
+### Scanning document nodes
+
+Every visible object or layer in a Figma file is represented by a node. The plugin starts from the selected nodes and recursively visits their children to find text nodes. If the selection is empty, it starts from the current page instead.
+
+The plugin sends serializable `TextItem` objects to React rather than sending Figma nodes themselves. Each item contains a node ID, layer name, characters, and an `editable` flag. Clicking a result sends the node ID back to the main thread, which retrieves the node asynchronously, selects it, and asks Figma to zoom it into view.
+
+Mixed-font or missing-font layers are marked as not editable. Reading their text is safe, but changing text requires every relevant font to be available and loaded first.
+
 ### Build output
 
 Vite bundles React, application code, and CSS into one `dist/index.html` file. esbuild bundles the plugin main thread into `dist/code.js`. The Figma manifest points to those two generated files.

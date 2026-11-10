@@ -4,7 +4,7 @@ Copy Check is a Figma plugin that finds inconsistent or unclear UI copy across s
 
 ## Project status
 
-The project is at its foundation checkpoint. The first build proves that a React panel can exchange typed messages with the Figma plugin main thread.
+The plugin can scan non-empty text layers from the current selection, or from the current page when nothing is selected. Results appear in the React panel, and clicking a result selects and zooms to its Figma layer.
 
 ## Local development
 
@@ -32,7 +32,7 @@ Import `manifest.json` as a development plugin in the Figma desktop app.
 
 The plugin main thread can read and edit the Figma document, but it cannot use browser APIs. The React panel can use browser APIs, but it cannot directly access the document. They communicate through typed messages.
 
-The Cloudflare Worker and Gemini audit will be added after this local connection is verified.
+The Cloudflare Worker and Gemini audit will be added after the local scan workflow is verified.
 
 ## Source specification
 
