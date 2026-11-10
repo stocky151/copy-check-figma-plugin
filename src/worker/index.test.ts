@@ -93,7 +93,7 @@ describe("Copy Check Worker", () => {
     });
   });
 
-  it("returns validated findings and drops invented IDs", async () => {
+  it("falls back after retries, validates findings, and drops invented IDs", async () => {
     const modelOutput = {
       findings: [
         {
@@ -111,20 +111,35 @@ describe("Copy Check Worker", () => {
       ],
     };
 
-    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
-      new Response(
-        JSON.stringify({
-          status: "completed",
-          steps: [
-            {
-              type: "model_output",
-              content: [{ type: "text", text: JSON.stringify(modelOutput) }],
-            },
-          ],
+    const fetchMock = vi
+      .spyOn(globalThis, "fetch")
+      .mockRejectedValueOnce(new DOMException("Timed out", "TimeoutError"))
+      .mockResolvedValueOnce(
+        new Response("Still unavailable", {
+          status: 503,
+          headers: { "Retry-After": "0" },
         }),
-        { status: 200, headers: { "Content-Type": "application/json" } },
-      ),
-    );
+      )
+      .mockResolvedValueOnce(
+        new Response("Fallback unavailable", {
+          status: 503,
+          headers: { "Retry-After": "0" },
+        }),
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            status: "completed",
+            steps: [
+              {
+                type: "model_output",
+                content: [{ type: "text", text: JSON.stringify(modelOutput) }],
+              },
+            ],
+          }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        ),
+      );
 
     const response = await worker.fetch(auditRequest(validRequest), {
       GEMINI_API_KEY: "test-key",
@@ -134,11 +149,22 @@ describe("Copy Check Worker", () => {
     await expect(response.json()).resolves.toEqual({
       findings: [modelOutput.findings[0]],
     });
-    expect(fetchMock).toHaveBeenCalledOnce();
+    expect(fetchMock).toHaveBeenCalledTimes(4);
 
     const requestInit = fetchMock.mock.calls[0]?.[1];
     const headers = new Headers(requestInit?.headers);
     expect(headers.get("x-goog-api-key")).toBe("test-key");
+
+    const primaryBody = JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body));
+    const retryBody = JSON.parse(String(fetchMock.mock.calls[1]?.[1]?.body));
+    const fallbackBody = JSON.parse(String(fetchMock.mock.calls[2]?.[1]?.body));
+    const finalFallbackBody = JSON.parse(
+      String(fetchMock.mock.calls[3]?.[1]?.body),
+    );
+    expect(primaryBody.model).toBe("gemini-3.8-flash");
+    expect(retryBody.model).toBe("gemini-3.8-flash");
+    expect(fallbackBody.model).toBe("gemini-3.7-flash");
+    expect(finalFallbackBody.model).toBe("gemini-3.6-flash");
   });
 
   it("rejects malformed Gemini output", async () => {
