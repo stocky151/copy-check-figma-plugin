@@ -133,6 +133,12 @@ describe("Copy Check Worker", () => {
         }),
       )
       .mockResolvedValueOnce(
+        new Response("Third fallback unavailable", {
+          status: 503,
+          headers: { "Retry-After": "0" },
+        }),
+      )
+      .mockResolvedValueOnce(
         new Response(
           JSON.stringify({
             status: "completed",
@@ -155,7 +161,7 @@ describe("Copy Check Worker", () => {
     await expect(response.json()).resolves.toEqual({
       findings: [modelOutput.findings[0]],
     });
-    expect(fetchMock).toHaveBeenCalledTimes(5);
+    expect(fetchMock).toHaveBeenCalledTimes(6);
 
     const requestInit = fetchMock.mock.calls[0]?.[1];
     const headers = new Headers(requestInit?.headers);
@@ -167,14 +173,18 @@ describe("Copy Check Worker", () => {
     const secondFallbackBody = JSON.parse(
       String(fetchMock.mock.calls[3]?.[1]?.body),
     );
-    const finalFallbackBody = JSON.parse(
+    const thirdFallbackBody = JSON.parse(
       String(fetchMock.mock.calls[4]?.[1]?.body),
     );
-    expect(primaryBody.model).toBe("gemini-3.8-flash");
-    expect(retryBody.model).toBe("gemini-3.8-flash");
-    expect(fallbackBody.model).toBe("gemini-3.7-flash");
+    const finalFallbackBody = JSON.parse(
+      String(fetchMock.mock.calls[5]?.[1]?.body),
+    );
+    expect(primaryBody.model).toBe("gemini-3.1-flash-lite");
+    expect(retryBody.model).toBe("gemini-3.1-flash-lite");
+    expect(fallbackBody.model).toBe("gemini-3.5-flash");
     expect(secondFallbackBody.model).toBe("gemini-3.6-flash");
-    expect(finalFallbackBody.model).toBe("gemini-3.5-flash");
+    expect(thirdFallbackBody.model).toBe("gemini-3.7-flash");
+    expect(finalFallbackBody.model).toBe("gemini-3.8-flash");
   });
 
   it("rejects malformed Gemini output", async () => {
@@ -201,5 +211,69 @@ describe("Copy Check Worker", () => {
     await expect(response.json()).resolves.toEqual({
       error: "The model service returned malformed JSON.",
     });
+  });
+
+  it("drops deterministic false positives for unedited starter rules", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          status: "completed",
+          steps: [
+            {
+              type: "model_output",
+              content: [
+                {
+                  type: "text",
+                  text: JSON.stringify({
+                    findings: [
+                      {
+                        nodeId: "1:2",
+                        guidelineId: "g3",
+                        issue: "The label is supposedly too long.",
+                        suggestion: "Sign in",
+                      },
+                      {
+                        nodeId: "1:2",
+                        guidelineId: "g8",
+                        issue: "The button supposedly cannot use an exclamation mark.",
+                        suggestion: "Sign in now",
+                      },
+                    ],
+                  }),
+                },
+              ],
+            },
+          ],
+        }),
+        { status: 200, headers: { "Content-Type": "application/json" } },
+      ),
+    );
+
+    const response = await worker.fetch(
+      auditRequest({
+        items: [
+          {
+            id: "1:2",
+            name: "Button",
+            text: "SIGN IN NOW!",
+            editable: true,
+          },
+        ],
+        guidelines: [
+          {
+            id: "g3",
+            rule: "Keep button labels to three words or fewer.",
+          },
+          {
+            id: "g8",
+            rule: "No exclamation marks in errors or warnings.",
+          },
+        ],
+      }),
+      { GEMINI_API_KEY: "test-key" },
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({ findings: [] });
   });
 });

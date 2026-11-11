@@ -1,22 +1,27 @@
-import type {
-  AuditRequest,
-  AuditResponse,
-  Finding,
+import {
+  STARTER_GUIDELINES,
+  type AuditRequest,
+  type AuditResponse,
+  type Finding,
 } from "../shared/audit";
 import { auditResponseSchema } from "./schemas";
 
 const GEMINI_INTERACTIONS_URL =
   "https://generativelanguage.googleapis.com/v1beta/interactions";
 const GEMINI_MODELS = [
-  "gemini-3.8-flash",
-  "gemini-3.7-flash",
-  "gemini-3.6-flash",
+  "gemini-3.1-flash-lite",
   "gemini-3.5-flash",
+  "gemini-3.6-flash",
+  "gemini-3.7-flash",
+  "gemini-3.8-flash",
 ] as const;
 const PRIMARY_MODEL_ATTEMPTS = 2;
 const FALLBACK_MODEL_ATTEMPTS = 1;
-const MODEL_REQUEST_TIMEOUT_MS = 15_000;
+const MODEL_REQUEST_TIMEOUT_MS = 12_000;
 const RETRYABLE_STATUSES = new Set([429, 500, 502, 503, 504]);
+const STARTER_RULE_BY_ID = new Map(
+  STARTER_GUIDELINES.map((guideline) => [guideline.id, guideline.rule] as const),
+);
 
 const responseSchema = {
   type: "object",
@@ -195,22 +200,40 @@ function removeInvalidFindings(
   findings: Finding[],
   request: AuditRequest,
 ): Finding[] {
-  const itemTextById = new Map(
-    request.items.map((item) => [item.id, item.text] as const),
-  );
+  const itemById = new Map(request.items.map((item) => [item.id, item] as const));
   const guidelineIds = new Set(
     request.guidelines.map((guideline) => guideline.id),
+  );
+  const guidelineRuleById = new Map(
+    request.guidelines.map((guideline) => [guideline.id, guideline.rule] as const),
   );
   const seen = new Set<string>();
 
   return findings.filter((finding) => {
-    const originalText = itemTextById.get(finding.nodeId);
+    const originalItem = itemById.get(finding.nodeId);
+    const originalText = originalItem?.text;
     const key = `${finding.nodeId}:${finding.guidelineId}`;
+    const usesUneditedStarterRule =
+      guidelineRuleById.get(finding.guidelineId) ===
+      STARTER_RULE_BY_ID.get(finding.guidelineId);
+    const wordCount = originalText?.trim().split(/\s+/).filter(Boolean).length;
+    const errorOrWarningContext = `${originalItem?.name ?? ""} ${originalText ?? ""}`;
+    const looksLikeErrorOrWarning =
+      /\b(error|warning|warn|failed|failure|unable|invalid|problem|danger|attention|declined)\b|could(?:n’t|n't| not)|went wrong/i.test(
+        errorOrWarningContext,
+      );
 
     if (
       originalText === undefined ||
       !guidelineIds.has(finding.guidelineId) ||
       finding.suggestion === originalText ||
+      (finding.guidelineId === "g3" &&
+        usesUneditedStarterRule &&
+        wordCount !== undefined &&
+        wordCount <= 3) ||
+      (finding.guidelineId === "g8" &&
+        usesUneditedStarterRule &&
+        (!originalText.includes("!") || !looksLikeErrorOrWarning)) ||
       seen.has(key)
     ) {
       return false;
@@ -228,7 +251,7 @@ export async function auditWithGemini(
   const requestBody = {
     store: false,
     system_instruction:
-      "You are a UX writing reviewer. Review only against the supplied guidelines. Use node IDs and guideline IDs exactly as provided. Report only meaningful problems. Suggestions must replace the entire text layer while preserving its intent. Return an empty findings array when the copy does not break a guideline.",
+      "You are a precise UX writing reviewer. Evaluate each supplied guideline literally and independently. Do not invent, broaden, or combine rules. Report a finding only when the cited guideline is clearly violated; when uncertain, do not report it. Use node IDs and guideline IDs exactly as provided. Count words by whitespace, and do not count punctuation as a word. Suggestions must replace the entire text layer, preserve its intent, and address the cited rule. Return an empty findings array when the copy does not break a guideline.",
     input: JSON.stringify(request),
     response_format: {
       type: "text",
