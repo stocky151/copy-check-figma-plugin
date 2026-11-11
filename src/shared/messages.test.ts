@@ -30,4 +30,34 @@ describe("plugin message validation", () => {
       true,
     );
   });
+
+  it("accepts a valid apply-all request and confirmation", () => {
+    expect(
+      isUiToPluginMessage({
+        type: "apply-all",
+        rewrites: [
+          { nodeId: "1:2", text: "Sign in" },
+          { nodeId: "1:3", text: "View account details" },
+        ],
+      }),
+    ).toBe(true);
+    expect(
+      isPluginToUiMessage({
+        type: "applied-all",
+        nodeIds: ["1:2", "1:3"],
+      }),
+    ).toBe(true);
+  });
+
+  it("rejects duplicate nodes in an apply-all request", () => {
+    expect(
+      isUiToPluginMessage({
+        type: "apply-all",
+        rewrites: [
+          { nodeId: "1:2", text: "Sign in" },
+          { nodeId: "1:2", text: "Log in" },
+        ],
+      }),
+    ).toBe(false);
+  });
 });

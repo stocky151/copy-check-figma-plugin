@@ -7,10 +7,16 @@ export type TextItem = {
 
 export type ScanSource = "selection" | "page";
 
+export type Rewrite = {
+  nodeId: string;
+  text: string;
+};
+
 export type UiToPluginMessage =
   | { type: "scan" }
   | { type: "select"; nodeId: string }
-  | { type: "apply"; nodeId: string; text: string };
+  | { type: "apply"; nodeId: string; text: string }
+  | { type: "apply-all"; rewrites: Rewrite[] };
 
 export type PluginToUiMessage =
   | {
@@ -19,7 +25,23 @@ export type PluginToUiMessage =
       source: ScanSource;
     }
   | { type: "applied"; nodeId: string }
+  | { type: "applied-all"; nodeIds: string[] }
   | { type: "error"; message: string };
+
+function isRewrite(value: unknown): value is Rewrite {
+  if (typeof value !== "object" || value === null) {
+    return false;
+  }
+
+  const candidate = value as Record<string, unknown>;
+  return (
+    typeof candidate.nodeId === "string" &&
+    candidate.nodeId.length > 0 &&
+    typeof candidate.text === "string" &&
+    candidate.text.length > 0 &&
+    candidate.text.length <= 2_000
+  );
+}
 
 export function isUiToPluginMessage(
   value: unknown,
@@ -35,13 +57,21 @@ export function isUiToPluginMessage(
   }
 
   if (candidate.type === "apply") {
-    return (
-      typeof candidate.nodeId === "string" &&
-      candidate.nodeId.length > 0 &&
-      typeof candidate.text === "string" &&
-      candidate.text.length > 0 &&
-      candidate.text.length <= 2_000
-    );
+    return isRewrite(candidate);
+  }
+
+  if (candidate.type === "apply-all") {
+    if (
+      !Array.isArray(candidate.rewrites) ||
+      candidate.rewrites.length === 0 ||
+      candidate.rewrites.length > 100 ||
+      !candidate.rewrites.every(isRewrite)
+    ) {
+      return false;
+    }
+
+    const nodeIds = candidate.rewrites.map((rewrite) => rewrite.nodeId);
+    return new Set(nodeIds).size === nodeIds.length;
   }
 
   return candidate.type === "select" && typeof candidate.nodeId === "string";
@@ -76,6 +106,16 @@ export function isPluginToUiMessage(
 
   if (candidate.type === "applied") {
     return typeof candidate.nodeId === "string";
+  }
+
+  if (candidate.type === "applied-all") {
+    return (
+      Array.isArray(candidate.nodeIds) &&
+      candidate.nodeIds.length > 0 &&
+      candidate.nodeIds.length <= 100 &&
+      candidate.nodeIds.every((nodeId) => typeof nodeId === "string") &&
+      new Set(candidate.nodeIds).size === candidate.nodeIds.length
+    );
   }
 
   return (

@@ -1,6 +1,7 @@
 import {
   isUiToPluginMessage,
   type PluginToUiMessage,
+  type Rewrite,
   type ScanSource,
   type TextItem,
 } from "../shared/messages";
@@ -74,27 +75,63 @@ async function selectNode(nodeId: string) {
   figma.viewport.scrollAndZoomIntoView([node]);
 }
 
-async function applyRewrite(nodeId: string, text: string) {
-  const node = await figma.getNodeByIdAsync(nodeId);
+type PreparedRewrite = {
+  node: TextNode;
+  originalText: string;
+  replacementText: string;
+};
+
+async function prepareRewrite(rewrite: Rewrite): Promise<PreparedRewrite> {
+  const node = await figma.getNodeByIdAsync(rewrite.nodeId);
 
   if (node === null || node.type !== "TEXT") {
     throw new Error("That text layer is no longer available.");
   }
 
   if (node.hasMissingFont) {
-    throw new Error("This layer uses a missing font and must be edited manually.");
+    throw new Error(`“${node.name}” uses a missing font and must be edited manually.`);
   }
 
   if (node.fontName === figma.mixed) {
-    throw new Error("This layer uses mixed fonts and must be edited manually.");
+    throw new Error(`“${node.name}” uses mixed fonts and must be edited manually.`);
   }
 
-  await figma.loadFontAsync(node.fontName);
-  node.characters = text;
+  return {
+    node,
+    originalText: node.characters,
+    replacementText: rewrite.text,
+  };
+}
+
+async function applyRewrites(rewrites: Rewrite[]) {
+  const preparedRewrites = await Promise.all(rewrites.map(prepareRewrite));
+
+  await Promise.all(
+    preparedRewrites.map(({ node }) => {
+      if (node.fontName === figma.mixed) {
+        throw new Error(`“${node.name}” uses mixed fonts and must be edited manually.`);
+      }
+
+      return figma.loadFontAsync(node.fontName);
+    }),
+  );
+
+  try {
+    for (const rewrite of preparedRewrites) {
+      rewrite.node.characters = rewrite.replacementText;
+    }
+  } catch (error) {
+    for (const rewrite of preparedRewrites) {
+      rewrite.node.characters = rewrite.originalText;
+    }
+    throw error;
+  }
+
   figma.commitUndo();
 
-  figma.currentPage.selection = [node];
-  figma.viewport.scrollAndZoomIntoView([node]);
+  const nodes = preparedRewrites.map(({ node }) => node);
+  figma.currentPage.selection = nodes;
+  figma.viewport.scrollAndZoomIntoView(nodes);
 }
 
 function sendError(error: unknown) {
@@ -122,10 +159,20 @@ figma.ui.onmessage = async (message: unknown) => {
     }
 
     if (message.type === "apply") {
-      await applyRewrite(message.nodeId, message.text);
+      await applyRewrites([{ nodeId: message.nodeId, text: message.text }]);
       const response: PluginToUiMessage = {
         type: "applied",
         nodeId: message.nodeId,
+      };
+      figma.ui.postMessage(response);
+      return;
+    }
+
+    if (message.type === "apply-all") {
+      await applyRewrites(message.rewrites);
+      const response: PluginToUiMessage = {
+        type: "applied-all",
+        nodeIds: message.rewrites.map((rewrite) => rewrite.nodeId),
       };
       figma.ui.postMessage(response);
       return;

@@ -90,7 +90,8 @@ h2 {
 .primary-button:focus-visible,
 .result-row:focus-visible,
 .finding-target:focus-visible,
-.apply-button:focus-visible {
+.apply-button:focus-visible,
+.apply-all-button:focus-visible {
   outline: 2px solid var(--figma-color-border-brand-strong, #0d99ff);
   outline-offset: 2px;
 }
@@ -287,6 +288,34 @@ h2 {
 .finding-count {
   color: var(--figma-color-text-secondary, #6b6b6b);
   font-size: 10px;
+}
+
+.findings-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.apply-all-button {
+  min-height: 26px;
+  padding: 0 9px;
+  border: 1px solid var(--figma-color-border-brand-strong, #0d99ff);
+  border-radius: 6px;
+  color: var(--figma-color-text-brand, #0d99ff);
+  background: var(--figma-color-bg, #ffffff);
+  cursor: pointer;
+  font-size: 10px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.apply-all-button:hover:not(:disabled) {
+  background: var(--figma-color-bg-brand-tertiary, #e5f4ff);
+}
+
+.apply-all-button:disabled {
+  cursor: wait;
+  opacity: 0.65;
 }
 
 .finding-group {

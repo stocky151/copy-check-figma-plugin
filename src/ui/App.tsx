@@ -6,6 +6,7 @@ import {
 } from "../shared/audit";
 import {
   isPluginToUiMessage,
+  type Rewrite,
   type ScanSource,
   type TextItem,
   type UiToPluginMessage,
@@ -61,8 +62,10 @@ export function App() {
   const [auditError, setAuditError] = useState("");
   const [applyError, setApplyError] = useState("");
   const [applyingNodeId, setApplyingNodeId] = useState<string | null>(null);
+  const [isApplyingAll, setIsApplyingAll] = useState(false);
   const [appliedNodeIds, setAppliedNodeIds] = useState<Set<string>>(new Set());
   const pendingApply = useRef<{ nodeId: string; text: string } | null>(null);
+  const pendingApplyAll = useRef<Rewrite[] | null>(null);
 
   const requestScan = useCallback(() => {
     setScanStatus("loading");
@@ -72,8 +75,10 @@ export function App() {
     setAuditError("");
     setApplyError("");
     setApplyingNodeId(null);
+    setIsApplyingAll(false);
     setAppliedNodeIds(new Set());
     pendingApply.current = null;
+    pendingApplyAll.current = null;
     sendToPlugin({ type: "scan" });
   }, []);
 
@@ -86,10 +91,12 @@ export function App() {
       }
 
       if (pluginMessage.type === "error") {
-        if (pendingApply.current !== null) {
+        if (pendingApply.current !== null || pendingApplyAll.current !== null) {
           setApplyError(pluginMessage.message);
           setApplyingNodeId(null);
+          setIsApplyingAll(false);
           pendingApply.current = null;
+          pendingApplyAll.current = null;
           return;
         }
 
@@ -109,7 +116,13 @@ export function App() {
 
         setItems((currentItems) =>
           currentItems.map((item) =>
-            item.id === applied.nodeId ? { ...item, text: applied.text } : item,
+            item.id === applied.nodeId
+              ? {
+                  ...item,
+                  name: item.name === item.text ? applied.text : item.name,
+                  text: applied.text,
+                }
+              : item,
           ),
         );
         setAppliedNodeIds((currentIds) => {
@@ -120,6 +133,51 @@ export function App() {
         setApplyError("");
         setApplyingNodeId(null);
         pendingApply.current = null;
+        return;
+      }
+
+      if (pluginMessage.type === "applied-all") {
+        const appliedRewrites = pendingApplyAll.current;
+        const expectedNodeIds = appliedRewrites?.map((rewrite) => rewrite.nodeId);
+        if (
+          appliedRewrites === null ||
+          expectedNodeIds === undefined ||
+          expectedNodeIds.length !== pluginMessage.nodeIds.length ||
+          expectedNodeIds.some((nodeId, index) => nodeId !== pluginMessage.nodeIds[index])
+        ) {
+          setApplyError("Copy Check received an unexpected batch confirmation.");
+          setIsApplyingAll(false);
+          pendingApplyAll.current = null;
+          return;
+        }
+
+        const replacementByNodeId = new Map(
+          appliedRewrites.map((rewrite) => [rewrite.nodeId, rewrite.text] as const),
+        );
+        setItems((currentItems) =>
+          currentItems.map((item) => {
+            const replacement = replacementByNodeId.get(item.id);
+            if (replacement === undefined) {
+              return item;
+            }
+
+            return {
+              ...item,
+              name: item.name === item.text ? replacement : item.name,
+              text: replacement,
+            };
+          }),
+        );
+        setAppliedNodeIds((currentIds) => {
+          const nextIds = new Set(currentIds);
+          for (const nodeId of pluginMessage.nodeIds) {
+            nextIds.add(nodeId);
+          }
+          return nextIds;
+        });
+        setApplyError("");
+        setIsApplyingAll(false);
+        pendingApplyAll.current = null;
         return;
       }
 
@@ -152,11 +210,20 @@ export function App() {
     });
   }
 
+  function applyAll(rewrites: Rewrite[]) {
+    pendingApplyAll.current = rewrites;
+    setApplyError("");
+    setIsApplyingAll(true);
+    sendToPlugin({ type: "apply-all", rewrites });
+  }
+
   async function checkCopy() {
     setAuditStatus("loading");
     setAuditError("");
     setApplyError("");
+    setIsApplyingAll(false);
     setAppliedNodeIds(new Set());
+    pendingApplyAll.current = null;
     setFindings([]);
 
     try {
@@ -200,10 +267,29 @@ export function App() {
   const activeFindingCount = findings.filter(
     (finding) => !appliedNodeIds.has(finding.nodeId),
   ).length;
+  const itemById = new Map(items.map((item) => [item.id, item] as const));
+  const actionableRewriteByNodeId = new Map<string, Rewrite>();
+  for (const finding of findings) {
+    const item = itemById.get(finding.nodeId);
+    if (
+      appliedNodeIds.has(finding.nodeId) ||
+      item?.editable !== true ||
+      actionableRewriteByNodeId.has(finding.nodeId)
+    ) {
+      continue;
+    }
+
+    actionableRewriteByNodeId.set(finding.nodeId, {
+      nodeId: finding.nodeId,
+      text: finding.suggestion,
+    });
+  }
+  const actionableRewrites = [...actionableRewriteByNodeId.values()];
   const busy =
     scanStatus === "loading" ||
     auditStatus === "loading" ||
-    applyingNodeId !== null;
+    applyingNodeId !== null ||
+    isApplyingAll;
 
   return (
     <main className="app-shell">
@@ -260,7 +346,7 @@ export function App() {
               {auditStatus !== "loading" && (
                 <button
                   className="primary-button"
-                  disabled={applyingNodeId !== null}
+                  disabled={applyingNodeId !== null || isApplyingAll}
                   onClick={checkCopy}
                   type="button"
                 >
@@ -332,10 +418,24 @@ export function App() {
                 <section className="findings" aria-label="Copy findings">
                   <div className="findings-heading">
                     <p className="section-label">Findings</p>
-                    <span className="finding-count">
-                      {activeFindingCount}{" "}
-                      {activeFindingCount === 1 ? "issue" : "issues"} remaining
-                    </span>
+                    <div className="findings-actions">
+                      <span className="finding-count">
+                        {activeFindingCount}{" "}
+                        {activeFindingCount === 1 ? "issue" : "issues"} remaining
+                      </span>
+                      {actionableRewrites.length > 1 && (
+                        <button
+                          className="apply-all-button"
+                          disabled={applyingNodeId !== null || isApplyingAll}
+                          onClick={() => applyAll(actionableRewrites)}
+                          type="button"
+                        >
+                          {isApplyingAll
+                            ? "Applying all…"
+                            : `Apply all (${actionableRewrites.length})`}
+                        </button>
+                      )}
+                    </div>
                   </div>
 
                   {applyError.length > 0 && (
@@ -404,7 +504,7 @@ export function App() {
                                 {item.editable ? (
                                   <button
                                     className="apply-button"
-                                    disabled={applyingNodeId !== null}
+                                    disabled={applyingNodeId !== null || isApplyingAll}
                                     onClick={() => applyFinding(finding)}
                                     type="button"
                                   >
