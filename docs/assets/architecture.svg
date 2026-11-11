@@ -1,0 +1,89 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="680" viewBox="0 0 1200 680" role="img" aria-labelledby="title description">
+  <title id="title">Copy Check system architecture</title>
+  <desc id="description">The React plugin panel exchanges typed messages with the Figma main thread. The panel sends audits through a validated Cloudflare Worker to the Gemini API, then receives validated findings. The main thread reads and updates canvas text and stores custom guidelines locally.</desc>
+
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#475569"/>
+    </marker>
+    <filter id="shadow" x="-10%" y="-10%" width="120%" height="130%">
+      <feDropShadow dx="0" dy="4" stdDeviation="6" flood-color="#0f172a" flood-opacity="0.08"/>
+    </filter>
+  </defs>
+
+  <rect width="1200" height="680" rx="24" fill="#f8fafc"/>
+
+  <rect x="36" y="36" width="468" height="608" rx="24" fill="#ffffff" stroke="#cbd5e1" stroke-width="2"/>
+  <text x="68" y="79" fill="#0f172a" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="24" font-weight="700">Figma desktop</text>
+  <text x="68" y="106" fill="#64748b" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="16">Two runtimes with different capabilities</text>
+
+  <g filter="url(#shadow)">
+    <rect x="76" y="138" width="388" height="112" rx="18" fill="#e0f2fe" stroke="#0284c7" stroke-width="2"/>
+    <circle cx="112" cy="174" r="18" fill="#0284c7"/>
+    <text x="112" y="181" text-anchor="middle" fill="#ffffff" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="18" font-weight="700">UI</text>
+    <text x="144" y="178" fill="#0f172a" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="22" font-weight="700">React panel</text>
+    <text x="96" y="218" fill="#334155" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="17">Interface, audit requests, and results</text>
+  </g>
+
+  <line x1="270" y1="250" x2="270" y2="326" stroke="#475569" stroke-width="3" marker-start="url(#arrow)" marker-end="url(#arrow)"/>
+  <rect x="286" y="272" width="146" height="32" rx="8" fill="#ffffff"/>
+  <text x="359" y="294" text-anchor="middle" fill="#475569" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="15" font-weight="600">Typed messages</text>
+
+  <g filter="url(#shadow)">
+    <rect x="76" y="326" width="388" height="112" rx="18" fill="#ede9fe" stroke="#7c3aed" stroke-width="2"/>
+    <circle cx="112" cy="362" r="18" fill="#7c3aed"/>
+    <text x="112" y="369" text-anchor="middle" fill="#ffffff" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="18" font-weight="700">TS</text>
+    <text x="144" y="366" fill="#0f172a" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="22" font-weight="700">Plugin main thread</text>
+    <text x="96" y="406" fill="#334155" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="17">Document access, font loading, and edits</text>
+  </g>
+
+  <path d="M 270 438 V 476 H 166 V 504" fill="none" stroke="#64748b" stroke-width="3" marker-end="url(#arrow)"/>
+  <path d="M 270 476 H 374 V 504" fill="none" stroke="#64748b" stroke-width="3" marker-end="url(#arrow)"/>
+
+  <rect x="76" y="504" width="180" height="102" rx="16" fill="#f1f5f9" stroke="#94a3b8" stroke-width="2"/>
+  <text x="166" y="546" text-anchor="middle" fill="#0f172a" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="20" font-weight="700">Canvas</text>
+  <text x="166" y="576" text-anchor="middle" fill="#475569" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="16">Text layers</text>
+
+  <rect x="284" y="504" width="180" height="102" rx="16" fill="#ecfdf5" stroke="#10b981" stroke-width="2"/>
+  <text x="374" y="546" text-anchor="middle" fill="#0f172a" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="20" font-weight="700">clientStorage</text>
+  <text x="374" y="576" text-anchor="middle" fill="#475569" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="16">Custom guidelines</text>
+
+  <g filter="url(#shadow)">
+    <rect x="572" y="196" width="272" height="210" rx="22" fill="#fff7ed" stroke="#f97316" stroke-width="2"/>
+    <text x="708" y="242" text-anchor="middle" fill="#9a3412" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="18" font-weight="700">SERVERLESS API</text>
+    <text x="708" y="282" text-anchor="middle" fill="#0f172a" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="24" font-weight="700">Cloudflare Worker</text>
+    <text x="708" y="324" text-anchor="middle" fill="#475569" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="17">Request validation</text>
+    <text x="708" y="352" text-anchor="middle" fill="#475569" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="17">Rate limiting</text>
+    <text x="708" y="380" text-anchor="middle" fill="#475569" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="17">Response validation</text>
+  </g>
+
+  <g filter="url(#shadow)">
+    <rect x="920" y="196" width="244" height="210" rx="22" fill="#f5f3ff" stroke="#8b5cf6" stroke-width="2"/>
+    <text x="1042" y="242" text-anchor="middle" fill="#6d28d9" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="18" font-weight="700">MODEL API</text>
+    <text x="1042" y="282" text-anchor="middle" fill="#0f172a" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="24" font-weight="700">Google Gemini</text>
+    <text x="1042" y="326" text-anchor="middle" fill="#475569" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="17">UX-writing analysis</text>
+    <text x="1042" y="354" text-anchor="middle" fill="#475569" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="17">Structured suggestions</text>
+  </g>
+
+  <path d="M 464 174 C 520 174 520 234 572 234" fill="none" stroke="#475569" stroke-width="3" marker-end="url(#arrow)"/>
+  <rect x="478" y="154" width="112" height="32" rx="8" fill="#f8fafc"/>
+  <text x="534" y="176" text-anchor="middle" fill="#334155" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="15" font-weight="600">Audit request</text>
+
+  <path d="M 572 350 C 520 350 520 218 464 218" fill="none" stroke="#475569" stroke-width="3" marker-end="url(#arrow)"/>
+  <rect x="477" y="326" width="126" height="32" rx="8" fill="#f8fafc"/>
+  <text x="540" y="348" text-anchor="middle" fill="#334155" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="15" font-weight="600">Safe findings</text>
+
+  <line x1="844" y1="246" x2="920" y2="246" stroke="#475569" stroke-width="3" marker-end="url(#arrow)"/>
+  <rect x="844" y="212" width="76" height="26" rx="7" fill="#f8fafc"/>
+  <text x="882" y="231" text-anchor="middle" fill="#334155" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="14" font-weight="600">Prompt</text>
+
+  <line x1="920" y1="350" x2="844" y2="350" stroke="#475569" stroke-width="3" marker-end="url(#arrow)"/>
+  <rect x="844" y="358" width="76" height="26" rx="7" fill="#f8fafc"/>
+  <text x="882" y="377" text-anchor="middle" fill="#334155" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="14" font-weight="600">JSON</text>
+
+  <rect x="606" y="476" width="204" height="82" rx="16" fill="#fefce8" stroke="#eab308" stroke-width="2"/>
+  <text x="708" y="510" text-anchor="middle" fill="#854d0e" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="16" font-weight="700">CLOUDFLARE SECRET</text>
+  <text x="708" y="538" text-anchor="middle" fill="#334155" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="16">GEMINI_API_KEY</text>
+  <line x1="708" y1="476" x2="708" y2="406" stroke="#a16207" stroke-width="3" stroke-dasharray="7 7" marker-end="url(#arrow)"/>
+
+</svg>
