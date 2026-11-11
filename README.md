@@ -27,7 +27,28 @@ This is a focused portfolio project built to demonstrate the intersection of des
 
 ## Architecture
 
-![Copy Check architecture showing the Figma runtimes, Cloudflare Worker, and Gemini API](docs/assets/architecture.svg)
+```mermaid
+flowchart TB
+  subgraph Figma["Figma desktop"]
+    direction TB
+    UI["React panel<br/>interface and network requests"]
+    Main["Plugin main thread<br/>Figma document API"]
+    Canvas["Canvas<br/>text layers"]
+    Store["clientStorage<br/>custom guidelines"]
+
+    UI <--> Main
+    Main <--> Canvas
+    Main <--> Store
+  end
+
+  Worker["Cloudflare Worker<br/>validation, rate limiting, and key protection"]
+  Gemini["Google Gemini API<br/>structured UX-writing analysis"]
+  Secret["Cloudflare secret<br/>GEMINI_API_KEY"]
+
+  UI <--> Worker
+  Worker <--> Gemini
+  Secret -.-> Worker
+```
 
 The plugin is split because Figma gives its two runtimes different capabilities. The main thread can read and change the document but has no browser DOM. The React panel can render an interface and make network requests but cannot touch the document directly. Typed messages in `src/shared/messages.ts` form the contract between them.
 
