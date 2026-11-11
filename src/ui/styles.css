@@ -36,7 +36,61 @@ button {
   align-items: flex-start;
   justify-content: space-between;
   gap: 16px;
+  margin-bottom: 14px;
+}
+
+.view-tabs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
   margin-bottom: 20px;
+  border-bottom: 1px solid var(--figma-color-border, #e5e5e5);
+}
+
+.view-tab {
+  position: relative;
+  min-height: 34px;
+  padding: 0 8px 9px;
+  border: 0;
+  color: var(--figma-color-text-secondary, #6b6b6b);
+  background: transparent;
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.view-tab::after {
+  position: absolute;
+  right: 0;
+  bottom: -1px;
+  left: 0;
+  height: 2px;
+  background: transparent;
+  content: "";
+}
+
+.view-tab:hover {
+  color: var(--figma-color-text, #1e1e1e);
+}
+
+.view-tab--active {
+  color: var(--figma-color-text-brand, #0d99ff);
+}
+
+.view-tab--active::after {
+  background: var(--figma-color-bg-brand, #0d99ff);
+}
+
+.view-tab span {
+  display: inline-grid;
+  min-width: 17px;
+  height: 17px;
+  place-items: center;
+  margin-left: 5px;
+  padding: 0 4px;
+  border-radius: 9px;
+  color: var(--figma-color-text-secondary, #6b6b6b);
+  background: var(--figma-color-bg-secondary, #f2f2f2);
+  font-size: 9px;
 }
 
 .eyebrow {
@@ -91,7 +145,12 @@ h2 {
 .result-row:focus-visible,
 .finding-target:focus-visible,
 .apply-button:focus-visible,
-.apply-all-button:focus-visible {
+.apply-all-button:focus-visible,
+.view-tab:focus-visible,
+.remove-guideline-button:focus-visible,
+.add-guideline-button:focus-visible,
+.save-guidelines-button:focus-visible,
+.guideline-editor textarea:focus-visible {
   outline: 2px solid var(--figma-color-border-brand-strong, #0d99ff);
   outline-offset: 2px;
 }
@@ -429,6 +488,161 @@ h2 {
   background: var(--figma-color-bg-danger-tertiary, #ffe9e4);
   font-size: 10px;
   line-height: 1.4;
+}
+
+.inline-success {
+  margin-top: 12px;
+  padding: 9px 10px;
+  border: 1px solid var(--figma-color-border-success, #14ae5c);
+  border-radius: 6px;
+  color: var(--figma-color-text-success, #0d7f43);
+  background: var(--figma-color-bg-success-tertiary, #e2f9eb);
+  font-size: 10px;
+  line-height: 1.4;
+}
+
+.guidelines-intro {
+  margin-bottom: 16px;
+}
+
+.guidelines-intro h2 {
+  margin-bottom: 4px;
+  font-size: 14px;
+}
+
+.guidelines-intro p {
+  margin-bottom: 0;
+  color: var(--figma-color-text-secondary, #6b6b6b);
+  font-size: 10px;
+  line-height: 1.5;
+}
+
+.guideline-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.guideline-editor {
+  position: relative;
+  padding: 10px;
+  border: 1px solid var(--figma-color-border, #e5e5e5);
+  border-radius: 8px;
+  background: var(--figma-color-bg-secondary, #f7f7f7);
+}
+
+.guideline-editor-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+
+.guideline-editor-header label {
+  color: var(--figma-color-text-secondary, #6b6b6b);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.remove-guideline-button {
+  padding: 2px 0;
+  border: 0;
+  color: var(--figma-color-text-danger, #d73718);
+  background: transparent;
+  cursor: pointer;
+  font-size: 9px;
+  font-weight: 600;
+}
+
+.remove-guideline-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.4;
+}
+
+.guideline-editor textarea {
+  display: block;
+  width: 100%;
+  min-height: 60px;
+  resize: vertical;
+  padding: 8px;
+  border: 1px solid var(--figma-color-border, #d9d9d9);
+  border-radius: 6px;
+  color: var(--figma-color-text, #1e1e1e);
+  background: var(--figma-color-bg, #ffffff);
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.character-count {
+  display: block;
+  margin-top: 4px;
+  color: var(--figma-color-text-tertiary, #999999);
+  font-size: 8px;
+  text-align: right;
+}
+
+.guideline-list-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 10px;
+}
+
+.guideline-list-footer > span {
+  color: var(--figma-color-text-secondary, #6b6b6b);
+  font-size: 9px;
+}
+
+.add-guideline-button {
+  padding: 4px 0;
+  border: 0;
+  color: var(--figma-color-text-brand, #0d99ff);
+  background: transparent;
+  cursor: pointer;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.add-guideline-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.guideline-actions {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid var(--figma-color-border, #e5e5e5);
+}
+
+.guideline-actions .secondary-button,
+.save-guidelines-button {
+  flex: 1;
+}
+
+.save-guidelines-button {
+  min-height: 30px;
+  padding: 0 11px;
+  border: 0;
+  border-radius: 6px;
+  color: var(--figma-color-text-onbrand, #ffffff);
+  background: var(--figma-color-bg-brand, #0d99ff);
+  cursor: pointer;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.save-guidelines-button:hover:not(:disabled) {
+  background: var(--figma-color-bg-brand-hover, #0c8ce9);
+}
+
+.save-guidelines-button:disabled {
+  cursor: wait;
+  opacity: 0.65;
 }
 
 .applied-confirmation {

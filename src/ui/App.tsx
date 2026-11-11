@@ -3,6 +3,7 @@ import {
   isAuditResponse,
   STARTER_GUIDELINES,
   type Finding,
+  type Guideline,
 } from "../shared/audit";
 import {
   isPluginToUiMessage,
@@ -17,6 +18,8 @@ const AUDIT_ENDPOINT =
 
 type ScanStatus = "loading" | "ready" | "error";
 type AuditStatus = "idle" | "loading" | "success" | "error";
+type View = "audit" | "guidelines";
+type GuidelineSaveStatus = "idle" | "saving" | "saved" | "error";
 
 function readPluginMessage(event: MessageEvent<unknown>): unknown {
   if (typeof event.data !== "object" || event.data === null) {
@@ -53,10 +56,17 @@ function auditErrorMessage(status: number, payload: unknown) {
 }
 
 export function App() {
+  const [view, setView] = useState<View>("audit");
   const [scanStatus, setScanStatus] = useState<ScanStatus>("loading");
   const [auditStatus, setAuditStatus] = useState<AuditStatus>("idle");
   const [items, setItems] = useState<TextItem[]>([]);
   const [findings, setFindings] = useState<Finding[]>([]);
+  const [guidelines, setGuidelines] = useState<Guideline[]>(
+    STARTER_GUIDELINES.map((guideline) => ({ ...guideline })),
+  );
+  const [guidelineSaveStatus, setGuidelineSaveStatus] =
+    useState<GuidelineSaveStatus>("idle");
+  const [guidelineError, setGuidelineError] = useState("");
   const [source, setSource] = useState<ScanSource>("page");
   const [scanError, setScanError] = useState("");
   const [auditError, setAuditError] = useState("");
@@ -66,6 +76,7 @@ export function App() {
   const [appliedNodeIds, setAppliedNodeIds] = useState<Set<string>>(new Set());
   const pendingApply = useRef<{ nodeId: string; text: string } | null>(null);
   const pendingApplyAll = useRef<Rewrite[] | null>(null);
+  const pendingGuidelineSave = useRef(false);
 
   const requestScan = useCallback(() => {
     setScanStatus("loading");
@@ -79,6 +90,9 @@ export function App() {
     setAppliedNodeIds(new Set());
     pendingApply.current = null;
     pendingApplyAll.current = null;
+    pendingGuidelineSave.current = false;
+    setGuidelineSaveStatus("idle");
+    setGuidelineError("");
     sendToPlugin({ type: "scan" });
   }, []);
 
@@ -97,6 +111,13 @@ export function App() {
           setIsApplyingAll(false);
           pendingApply.current = null;
           pendingApplyAll.current = null;
+          return;
+        }
+
+        if (pendingGuidelineSave.current) {
+          setGuidelineError(pluginMessage.message);
+          setGuidelineSaveStatus("error");
+          pendingGuidelineSave.current = false;
           return;
         }
 
@@ -181,8 +202,17 @@ export function App() {
         return;
       }
 
+      if (pluginMessage.type === "guidelines-saved") {
+        setGuidelines(pluginMessage.guidelines);
+        setGuidelineError("");
+        setGuidelineSaveStatus("saved");
+        pendingGuidelineSave.current = false;
+        return;
+      }
+
       setItems(pluginMessage.items);
       setSource(pluginMessage.source);
+      setGuidelines(pluginMessage.guidelines);
       setScanStatus("ready");
     }
 
@@ -217,6 +247,71 @@ export function App() {
     sendToPlugin({ type: "apply-all", rewrites });
   }
 
+  function invalidateAuditAfterGuidelineChange() {
+    setAuditStatus("idle");
+    setFindings([]);
+    setAppliedNodeIds(new Set());
+    setApplyError("");
+    setGuidelineSaveStatus("idle");
+    setGuidelineError("");
+  }
+
+  function updateGuideline(id: string, rule: string) {
+    setGuidelines((currentGuidelines) =>
+      currentGuidelines.map((guideline) =>
+        guideline.id === id ? { ...guideline, rule } : guideline,
+      ),
+    );
+    invalidateAuditAfterGuidelineChange();
+  }
+
+  function addGuideline() {
+    if (guidelines.length >= 20) {
+      return;
+    }
+
+    const existingIds = new Set(guidelines.map((guideline) => guideline.id));
+    let index = 1;
+    while (existingIds.has(`custom-${index}`)) {
+      index += 1;
+    }
+
+    setGuidelines((currentGuidelines) => [
+      ...currentGuidelines,
+      { id: `custom-${index}`, rule: "" },
+    ]);
+    invalidateAuditAfterGuidelineChange();
+  }
+
+  function removeGuideline(id: string) {
+    if (guidelines.length === 1) {
+      return;
+    }
+
+    setGuidelines((currentGuidelines) =>
+      currentGuidelines.filter((guideline) => guideline.id !== id),
+    );
+    invalidateAuditAfterGuidelineChange();
+  }
+
+  function restoreDefaultGuidelines() {
+    setGuidelines(STARTER_GUIDELINES.map((guideline) => ({ ...guideline })));
+    invalidateAuditAfterGuidelineChange();
+  }
+
+  function saveGuidelines() {
+    if (guidelines.some((guideline) => guideline.rule.trim().length === 0)) {
+      setGuidelineError("Every guideline needs text before you can save.");
+      setGuidelineSaveStatus("error");
+      return;
+    }
+
+    pendingGuidelineSave.current = true;
+    setGuidelineError("");
+    setGuidelineSaveStatus("saving");
+    sendToPlugin({ type: "save-guidelines", guidelines });
+  }
+
   async function checkCopy() {
     setAuditStatus("loading");
     setAuditError("");
@@ -232,7 +327,7 @@ export function App() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           items,
-          guidelines: STARTER_GUIDELINES,
+          guidelines,
         }),
       });
       const payload: unknown = await response.json();
@@ -289,26 +384,55 @@ export function App() {
     scanStatus === "loading" ||
     auditStatus === "loading" ||
     applyingNodeId !== null ||
-    isApplyingAll;
+    isApplyingAll ||
+    guidelineSaveStatus === "saving";
 
   return (
     <main className="app-shell">
       <header className="app-header">
         <div>
-          <p className="eyebrow">UX writing audit</p>
+          <p className="eyebrow">
+            {view === "audit" ? "UX writing audit" : "Writing standards"}
+          </p>
           <h1>Copy Check</h1>
         </div>
-        <button
-          className="secondary-button"
-          disabled={busy}
-          onClick={requestScan}
-          type="button"
-        >
-          Refresh
-        </button>
+        {view === "audit" && (
+          <button
+            className="secondary-button"
+            disabled={busy}
+            onClick={requestScan}
+            type="button"
+          >
+            Refresh
+          </button>
+        )}
       </header>
 
-      {scanStatus === "loading" && (
+      <nav className="view-tabs" aria-label="Copy Check views">
+        <button
+          aria-selected={view === "audit"}
+          className={view === "audit" ? "view-tab view-tab--active" : "view-tab"}
+          onClick={() => setView("audit")}
+          role="tab"
+          type="button"
+        >
+          Audit
+        </button>
+        <button
+          aria-selected={view === "guidelines"}
+          className={
+            view === "guidelines" ? "view-tab view-tab--active" : "view-tab"
+          }
+          onClick={() => setView("guidelines")}
+          role="tab"
+          type="button"
+        >
+          Guidelines
+          <span>{guidelines.length}</span>
+        </button>
+      </nav>
+
+      {view === "audit" && scanStatus === "loading" && (
         <section className="message-state" aria-live="polite">
           <div className="spinner" aria-hidden="true" />
           <h2>Scanning text layers…</h2>
@@ -316,7 +440,7 @@ export function App() {
         </section>
       )}
 
-      {scanStatus === "error" && (
+      {view === "audit" && scanStatus === "error" && (
         <section className="message-state message-state--error" role="alert">
           <h2>Couldn’t scan this selection</h2>
           <p>{scanError}</p>
@@ -326,7 +450,7 @@ export function App() {
         </section>
       )}
 
-      {scanStatus === "ready" && (
+      {view === "audit" && scanStatus === "ready" && (
         <>
           <section className="scan-summary" aria-live="polite">
             <div>
@@ -357,7 +481,7 @@ export function App() {
               {auditStatus === "idle" && (
                 <section className="results" aria-label="Scanned text layers">
                   <p className="section-label">
-                    Ready to check against {STARTER_GUIDELINES.length} guidelines
+                    Ready to check against {guidelines.length} guidelines
                   </p>
                   <div className="result-list">
                     {items.map((item) => (
@@ -389,7 +513,7 @@ export function App() {
                   <h2>Checking your copy…</h2>
                   <p>
                     Comparing {items.length} {items.length === 1 ? "layer" : "layers"}
-                    {" "}against {STARTER_GUIDELINES.length} guidelines.
+                    {" "}against {guidelines.length} guidelines.
                   </p>
                 </section>
               )}
@@ -410,7 +534,7 @@ export function App() {
                     ✓
                   </span>
                   <h2>No issues found</h2>
-                  <p>This copy follows all {STARTER_GUIDELINES.length} guidelines.</p>
+                  <p>This copy follows all {guidelines.length} guidelines.</p>
                 </section>
               )}
 
@@ -482,7 +606,7 @@ export function App() {
                             </div>
                           </div>
                         ) : nodeFindings.map((finding) => {
-                          const guideline = STARTER_GUIDELINES.find(
+                          const guideline = guidelines.find(
                             (candidate) => candidate.id === finding.guidelineId,
                           );
 
@@ -525,6 +649,95 @@ export function App() {
             </>
           )}
         </>
+      )}
+
+      {view === "guidelines" && (
+        <section className="guidelines-view" aria-label="Guideline editor">
+          <div className="guidelines-intro">
+            <h2>Your guidelines</h2>
+            <p>
+              Edit the rules Gemini uses during an audit. They are saved locally
+              for this Figma plugin.
+            </p>
+          </div>
+
+          <div className="guideline-list">
+            {guidelines.map((guideline, index) => (
+              <div className="guideline-editor" key={guideline.id}>
+                <div className="guideline-editor-header">
+                  <label htmlFor={`guideline-${index}`}>Rule {index + 1}</label>
+                  <button
+                    aria-label={`Remove rule ${index + 1}`}
+                    className="remove-guideline-button"
+                    disabled={guidelines.length === 1}
+                    onClick={() => removeGuideline(guideline.id)}
+                    title={
+                      guidelines.length === 1
+                        ? "Copy Check needs at least one guideline"
+                        : "Remove guideline"
+                    }
+                    type="button"
+                  >
+                    Remove
+                  </button>
+                </div>
+                <textarea
+                  id={`guideline-${index}`}
+                  maxLength={500}
+                  onChange={(event) =>
+                    updateGuideline(guideline.id, event.target.value)
+                  }
+                  rows={3}
+                  value={guideline.rule}
+                />
+                <span className="character-count">{guideline.rule.length}/500</span>
+              </div>
+            ))}
+          </div>
+
+          <div className="guideline-list-footer">
+            <button
+              className="add-guideline-button"
+              disabled={guidelines.length >= 20}
+              onClick={addGuideline}
+              type="button"
+            >
+              + Add guideline
+            </button>
+            <span>{guidelines.length}/20 rules</span>
+          </div>
+
+          {guidelineSaveStatus === "saved" && (
+            <div className="inline-success" role="status">
+              Guidelines saved on this device.
+            </div>
+          )}
+
+          {guidelineSaveStatus === "error" && (
+            <div className="inline-error" role="alert">
+              {guidelineError}
+            </div>
+          )}
+
+          <div className="guideline-actions">
+            <button
+              className="secondary-button"
+              disabled={guidelineSaveStatus === "saving"}
+              onClick={restoreDefaultGuidelines}
+              type="button"
+            >
+              Restore defaults
+            </button>
+            <button
+              className="save-guidelines-button"
+              disabled={guidelineSaveStatus === "saving"}
+              onClick={saveGuidelines}
+              type="button"
+            >
+              {guidelineSaveStatus === "saving" ? "Saving…" : "Save guidelines"}
+            </button>
+          </div>
+        </section>
       )}
     </main>
   );

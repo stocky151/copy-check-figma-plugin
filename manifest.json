@@ -1,5 +1,6 @@
 {
   "name": "Copy Check",
+  "id": "1702373347219545505",
   "api": "1.0.0",
   "editorType": ["figma"],
   "main": "dist/code.js",

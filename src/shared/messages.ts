@@ -1,3 +1,5 @@
+import type { Guideline } from "./audit";
+
 export type TextItem = {
   id: string;
   name: string;
@@ -16,17 +18,50 @@ export type UiToPluginMessage =
   | { type: "scan" }
   | { type: "select"; nodeId: string }
   | { type: "apply"; nodeId: string; text: string }
-  | { type: "apply-all"; rewrites: Rewrite[] };
+  | { type: "apply-all"; rewrites: Rewrite[] }
+  | { type: "save-guidelines"; guidelines: Guideline[] };
 
 export type PluginToUiMessage =
   | {
       type: "scan-result";
       items: TextItem[];
       source: ScanSource;
+      guidelines: Guideline[];
     }
   | { type: "applied"; nodeId: string }
   | { type: "applied-all"; nodeIds: string[] }
+  | { type: "guidelines-saved"; guidelines: Guideline[] }
   | { type: "error"; message: string };
+
+function isGuideline(value: unknown): value is Guideline {
+  if (typeof value !== "object" || value === null) {
+    return false;
+  }
+
+  const candidate = value as Record<string, unknown>;
+  return (
+    typeof candidate.id === "string" &&
+    candidate.id.length > 0 &&
+    candidate.id.length <= 100 &&
+    typeof candidate.rule === "string" &&
+    candidate.rule.trim().length > 0 &&
+    candidate.rule.length <= 500
+  );
+}
+
+export function isGuidelineList(value: unknown): value is Guideline[] {
+  if (
+    !Array.isArray(value) ||
+    value.length === 0 ||
+    value.length > 20 ||
+    !value.every(isGuideline)
+  ) {
+    return false;
+  }
+
+  const guidelineIds = value.map((guideline) => guideline.id);
+  return new Set(guidelineIds).size === guidelineIds.length;
+}
 
 function isRewrite(value: unknown): value is Rewrite {
   if (typeof value !== "object" || value === null) {
@@ -74,6 +109,10 @@ export function isUiToPluginMessage(
     return new Set(nodeIds).size === nodeIds.length;
   }
 
+  if (candidate.type === "save-guidelines") {
+    return isGuidelineList(candidate.guidelines);
+  }
+
   return candidate.type === "select" && typeof candidate.nodeId === "string";
 }
 
@@ -118,10 +157,15 @@ export function isPluginToUiMessage(
     );
   }
 
+  if (candidate.type === "guidelines-saved") {
+    return isGuidelineList(candidate.guidelines);
+  }
+
   return (
     candidate.type === "scan-result" &&
     (candidate.source === "selection" || candidate.source === "page") &&
     Array.isArray(candidate.items) &&
-    candidate.items.every(isTextItem)
+    candidate.items.every(isTextItem) &&
+    isGuidelineList(candidate.guidelines)
   );
 }

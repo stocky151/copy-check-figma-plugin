@@ -60,4 +60,42 @@ describe("plugin message validation", () => {
       }),
     ).toBe(false);
   });
+
+  it("accepts a valid guideline save and confirmation", () => {
+    const guidelines = [
+      { id: "g1", rule: "Use sentence case." },
+      { id: "custom-1", rule: "Use plain language." },
+    ];
+
+    expect(
+      isUiToPluginMessage({ type: "save-guidelines", guidelines }),
+    ).toBe(true);
+    expect(
+      isPluginToUiMessage({ type: "guidelines-saved", guidelines }),
+    ).toBe(true);
+  });
+
+  it("rejects empty, duplicate, or excessive guideline lists", () => {
+    expect(
+      isUiToPluginMessage({ type: "save-guidelines", guidelines: [] }),
+    ).toBe(false);
+    expect(
+      isUiToPluginMessage({
+        type: "save-guidelines",
+        guidelines: [
+          { id: "g1", rule: "Use sentence case." },
+          { id: "g1", rule: "Duplicate ID." },
+        ],
+      }),
+    ).toBe(false);
+    expect(
+      isUiToPluginMessage({
+        type: "save-guidelines",
+        guidelines: Array.from({ length: 21 }, (_, index) => ({
+          id: `g${index + 1}`,
+          rule: `Rule ${index + 1}`,
+        })),
+      }),
+    ).toBe(false);
+  });
 });

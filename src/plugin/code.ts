@@ -1,10 +1,14 @@
 import {
+  isGuidelineList,
   isUiToPluginMessage,
   type PluginToUiMessage,
   type Rewrite,
   type ScanSource,
   type TextItem,
 } from "../shared/messages";
+import { STARTER_GUIDELINES, type Guideline } from "../shared/audit";
+
+const GUIDELINES_STORAGE_KEY = "copy-check-guidelines-v1";
 
 figma.showUI(__html__, {
   height: 560,
@@ -49,6 +53,7 @@ function toTextItem(node: TextNode): TextItem {
 async function scanCurrentContext(): Promise<{
   items: TextItem[];
   source: ScanSource;
+  guidelines: Guideline[];
 }> {
   await figma.currentPage.loadAsync();
 
@@ -56,8 +61,26 @@ async function scanCurrentContext(): Promise<{
   const source: ScanSource = selection.length > 0 ? "selection" : "page";
   const roots = selection.length > 0 ? selection : figma.currentPage.children;
   const items = collectTextNodes(roots).map(toTextItem);
+  const storedGuidelines: unknown = await figma.clientStorage.getAsync(
+    GUIDELINES_STORAGE_KEY,
+  );
+  const guidelines = isGuidelineList(storedGuidelines)
+    ? storedGuidelines
+    : STARTER_GUIDELINES.map((guideline) => ({ ...guideline }));
 
-  return { items, source };
+  return { items, source, guidelines };
+}
+
+async function saveGuidelines(guidelines: Guideline[]) {
+  const normalizedGuidelines = guidelines.map((guideline) => ({
+    ...guideline,
+    rule: guideline.rule.trim(),
+  }));
+  await figma.clientStorage.setAsync(
+    GUIDELINES_STORAGE_KEY,
+    normalizedGuidelines,
+  );
+  return normalizedGuidelines;
 }
 
 function isSelectableSceneNode(node: BaseNode): node is SceneNode {
@@ -136,7 +159,11 @@ async function applyRewrites(rewrites: Rewrite[]) {
 
 function sendError(error: unknown) {
   const message =
-    error instanceof Error ? error.message : "Copy Check encountered an error.";
+    error instanceof Error
+      ? error.message
+      : typeof error === "string"
+        ? error
+        : "Copy Check encountered an error.";
   const response: PluginToUiMessage = { type: "error", message };
   figma.ui.postMessage(response);
 }
@@ -173,6 +200,16 @@ figma.ui.onmessage = async (message: unknown) => {
       const response: PluginToUiMessage = {
         type: "applied-all",
         nodeIds: message.rewrites.map((rewrite) => rewrite.nodeId),
+      };
+      figma.ui.postMessage(response);
+      return;
+    }
+
+    if (message.type === "save-guidelines") {
+      const guidelines = await saveGuidelines(message.guidelines);
+      const response: PluginToUiMessage = {
+        type: "guidelines-saved",
+        guidelines,
       };
       figma.ui.postMessage(response);
       return;
