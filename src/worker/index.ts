@@ -5,6 +5,9 @@ const MAX_BODY_BYTES = 64 * 1_024;
 
 export interface Env {
   GEMINI_API_KEY?: string;
+  AUDIT_RATE_LIMITER?: {
+    limit(options: { key: string }): Promise<{ success: boolean }>;
+  };
 }
 
 const corsHeaders = {
@@ -18,13 +21,18 @@ class HttpError extends Error {
   constructor(
     readonly status: number,
     message: string,
+    readonly headers: HeadersInit = {},
   ) {
     super(message);
     this.name = "HttpError";
   }
 }
 
-function jsonResponse(value: unknown, status = 200) {
+function jsonResponse(
+  value: unknown,
+  status = 200,
+  additionalHeaders: HeadersInit = {},
+) {
   return new Response(JSON.stringify(value), {
     status,
     headers: {
@@ -32,6 +40,7 @@ function jsonResponse(value: unknown, status = 200) {
       "Cache-Control": "no-store",
       "Content-Type": "application/json; charset=utf-8",
       "X-Content-Type-Options": "nosniff",
+      ...additionalHeaders,
     },
   });
 }
@@ -57,6 +66,19 @@ async function readJsonBody(request: Request): Promise<unknown> {
 async function handleAudit(request: Request, env: Env) {
   if (!request.headers.get("Content-Type")?.includes("application/json")) {
     throw new HttpError(415, "Content-Type must be application/json.");
+  }
+
+  if (env.AUDIT_RATE_LIMITER) {
+    const clientIp = request.headers.get("CF-Connecting-IP") ?? "unknown";
+    const { success } = await env.AUDIT_RATE_LIMITER.limit({ key: clientIp });
+
+    if (!success) {
+      throw new HttpError(
+        429,
+        "Too many audit requests. Please try again shortly.",
+        { "Retry-After": "60" },
+      );
+    }
   }
 
   const body = await readJsonBody(request);
@@ -107,7 +129,7 @@ export default {
       return await handleAudit(request, env);
     } catch (error) {
       if (error instanceof HttpError) {
-        return jsonResponse({ error: error.message }, error.status);
+        return jsonResponse({ error: error.message }, error.status, error.headers);
       }
 
       if (error instanceof ModelServiceError) {

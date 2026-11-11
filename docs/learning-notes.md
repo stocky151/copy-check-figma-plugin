@@ -57,3 +57,21 @@ TypeScript checks our source code but cannot prove that network data is valid at
 ### Gemini structured output
 
 The Worker asks Gemini's Interactions API for JSON matching a specific schema. Structured output makes the response more predictable, but the Worker still validates it. Findings with node or guideline IDs absent from the original request are dropped before they can reach the plugin.
+
+## Connected product workflow
+
+### React state and asynchronous requests
+
+The panel keeps the scan, audit, apply, and guideline-editor states in React. Network calls are asynchronous: the interface enters a loading state, waits for the Worker, validates the reply, and then renders either findings, a clean result, or a recoverable error. React re-renders from state instead of manually editing the DOM after each event.
+
+### Applying copy safely
+
+Figma text cannot be changed until its font is loaded. The main thread checks that a layer uses one available font, loads it with `figma.loadFontAsync`, and only then replaces `characters`. Apply-all prepares every valid change before committing them together and calls `figma.commitUndo()` once, so Figma can reverse the batch with one native Undo command.
+
+### Guideline persistence
+
+Guidelines are saved through `figma.clientStorage`, not browser local storage. The main thread owns persistence because it is part of the Figma plugin environment. Incoming guideline messages are validated for count, length, shape, and unique IDs before anything is stored.
+
+### Protecting a public endpoint
+
+The Worker URL has to be visible to the plugin, so obscurity cannot protect it. Protection happens in layers: a 64 KiB body cap, Zod request limits, a Cloudflare rate-limiting binding, Gemini response validation, and a free-tier provider account with no paid billing enabled. The rate limiter allows ten audit calls per client IP per minute at each Cloudflare location.

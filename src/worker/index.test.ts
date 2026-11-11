@@ -27,6 +27,12 @@ function auditRequest(body: unknown) {
   });
 }
 
+function rateLimiter(success = true) {
+  return {
+    limit: vi.fn().mockResolvedValue({ success }),
+  };
+}
+
 afterEach(() => {
   vi.restoreAllMocks();
 });
@@ -61,6 +67,43 @@ describe("Copy Check Worker", () => {
     expect(await response.json()).toMatchObject({
       error: "Invalid audit request.",
     });
+  });
+
+  it("rejects request bodies larger than 64 KiB", async () => {
+    const response = await worker.fetch(
+      new Request("https://copy-check.test/audit", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: "x".repeat(64 * 1_024 + 1),
+      }),
+      {
+        GEMINI_API_KEY: "test-key",
+        AUDIT_RATE_LIMITER: rateLimiter(),
+      },
+    );
+
+    expect(response.status).toBe(413);
+    await expect(response.json()).resolves.toEqual({
+      error: "Request body is too large.",
+    });
+  });
+
+  it("rate-limits audit requests by their Cloudflare client IP", async () => {
+    const limiter = rateLimiter(false);
+    const request = auditRequest(validRequest);
+    request.headers.set("CF-Connecting-IP", "203.0.113.10");
+
+    const response = await worker.fetch(request, {
+      GEMINI_API_KEY: "test-key",
+      AUDIT_RATE_LIMITER: limiter,
+    });
+
+    expect(response.status).toBe(429);
+    await expect(response.json()).resolves.toEqual({
+      error: "Too many audit requests. Please try again shortly.",
+    });
+    expect(response.headers.get("Retry-After")).toBe("60");
+    expect(limiter.limit).toHaveBeenCalledWith({ key: "203.0.113.10" });
   });
 
   it("rejects requests with more than 100 text items", async () => {
