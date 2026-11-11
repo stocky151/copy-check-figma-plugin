@@ -4,7 +4,9 @@ Copy Check is an AI-assisted Figma plugin that audits UI text against editable U
 
 ## Demo
 
-> The final sub-60-second demo will be added after fresh-file QA. It will show the complete scan → findings → apply → native Figma undo workflow.
+[![Watch the 47-second Copy Check demo](docs/assets/copy-check-demo-poster.png)](docs/assets/copy-check-demo.mp4)
+
+[Watch the 47-second demo](docs/assets/copy-check-demo.mp4): editable guidelines → 50-layer audit → findings → in-canvas rewrites → clean recheck.
 
 ## Why it exists
 

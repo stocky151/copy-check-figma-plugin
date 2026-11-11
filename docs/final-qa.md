@@ -30,27 +30,27 @@ In **Guidelines**, add: `Button labels must not use the word "Continue". Suggest
 
 ## Core regression
 
-- [ ] With the QA frame selected, the counter reports 5 text layers.
-- [ ] With nothing selected, the plugin scans the current page.
-- [ ] **Check copy** reaches a result rather than an error.
-- [ ] The three deliberately problematic strings produce sensible findings.
-- [ ] Clean comparison copy is not given an obviously invented rule violation.
-- [ ] Clicking a finding selects and zooms to the correct Figma layer.
-- [ ] **Apply** changes one layer on the canvas.
-- [ ] Figma's **Undo** reverses that single edit.
-- [ ] **Apply all** changes every remaining editable finding.
-- [ ] One Figma **Undo** reverses the entire Apply-all batch.
-- [ ] Saved guidelines survive closing and reopening the plugin.
-- [ ] Turning the network off before an audit shows the intentional retry state; turning it back on makes **Try again** recover.
+- [x] With the QA frame selected, the counter reports 5 text layers.
+- [x] With nothing selected, the plugin scans the current page.
+- [x] **Check copy** reaches a result rather than an error.
+- [x] The three deliberately problematic strings produce sensible findings.
+- [x] Clean comparison copy is not given an obviously invented rule violation.
+- [x] Clicking a finding selects and zooms to the correct Figma layer.
+- [x] **Apply** changes one layer on the canvas.
+- [x] Figma's **Undo** reverses that single edit.
+- [x] **Apply all** changes every remaining editable finding.
+- [x] One Figma **Undo** reverses the entire Apply-all batch.
+- [x] Saved guidelines survive closing and reopening the plugin.
+- [x] Turning the network off before an audit shows the intentional retry state; turning it back on makes **Try again** recover.
 
 ## 50-layer scan check
 
 The specification calls for one higher-volume document test. Create ten simple text layers inside a frame, then duplicate that set four times so the frame contains 50 text nodes total. Select the outer frame and confirm:
 
-- [ ] the plugin reports 50 text layers;
-- [ ] the panel remains responsive;
-- [ ] clicking a listed layer navigates to the matching node; and
-- [ ] an audit completes without exceeding the 100-layer request cap.
+- [x] the plugin reports 50 text layers;
+- [x] the panel remains responsive;
+- [x] clicking a listed layer navigates to the matching node; and
+- [x] an audit completes without exceeding the 100-layer request cap.
 
 Do not use employer, client, or production text in this fixture.
 
@@ -70,3 +70,7 @@ Record only the Figma canvas and plugin panel. Keep the QA frame selected and th
 | 57–60s | End on the Copy Check title and completed UI. |
 
 On macOS, press **Command–Shift–5**, choose **Record Selected Portion**, and frame the capture around Figma. No narration is required; concise cursor movement is more important. Export or trim the result to 60 seconds or less before adding it near the top of the README.
+
+## Recorded result
+
+The final 46.6-second demo uses three original Moss & Mile mobile screens and 50 text layers. It shows the saved custom guideline, three controlled findings, navigation to affected canvas layers, one individual rewrite, **Apply all**, a clean recheck, and the corrected design. Native single-edit and Apply-all undo behavior was verified separately during the regression pass.
