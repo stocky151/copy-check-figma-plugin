@@ -12,14 +12,17 @@ export type ScanSource = "selection" | "page";
 export type Rewrite = {
   nodeId: string;
   text: string;
+  expectedText: string;
 };
 
 export type UiToPluginMessage =
   | { type: "scan" }
   | { type: "select"; nodeId: string }
-  | { type: "apply"; nodeId: string; text: string }
+  | { type: "apply"; nodeId: string; text: string; expectedText: string }
   | { type: "apply-all"; rewrites: Rewrite[] }
   | { type: "save-guidelines"; guidelines: Guideline[] };
+
+export type PluginOperation = UiToPluginMessage["type"] | "unknown";
 
 export type PluginToUiMessage =
   | {
@@ -30,8 +33,9 @@ export type PluginToUiMessage =
     }
   | { type: "applied"; nodeId: string }
   | { type: "applied-all"; nodeIds: string[] }
+  | { type: "selected"; nodeId: string }
   | { type: "guidelines-saved"; guidelines: Guideline[] }
-  | { type: "error"; message: string };
+  | { type: "error"; message: string; operation: PluginOperation };
 
 function isGuideline(value: unknown): value is Guideline {
   if (typeof value !== "object" || value === null) {
@@ -74,7 +78,10 @@ function isRewrite(value: unknown): value is Rewrite {
     candidate.nodeId.length > 0 &&
     typeof candidate.text === "string" &&
     candidate.text.length > 0 &&
-    candidate.text.length <= 2_000
+    candidate.text.length <= 2_000 &&
+    typeof candidate.expectedText === "string" &&
+    candidate.expectedText.length > 0 &&
+    candidate.expectedText.length <= 2_000
   );
 }
 
@@ -140,10 +147,22 @@ export function isPluginToUiMessage(
   const candidate = value as Record<string, unknown>;
 
   if (candidate.type === "error") {
-    return typeof candidate.message === "string";
+    return (
+      typeof candidate.message === "string" &&
+      (candidate.operation === "scan" ||
+        candidate.operation === "select" ||
+        candidate.operation === "apply" ||
+        candidate.operation === "apply-all" ||
+        candidate.operation === "save-guidelines" ||
+        candidate.operation === "unknown")
+    );
   }
 
   if (candidate.type === "applied") {
+    return typeof candidate.nodeId === "string";
+  }
+
+  if (candidate.type === "selected") {
     return typeof candidate.nodeId === "string";
   }
 

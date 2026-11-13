@@ -147,6 +147,7 @@ h2 {
 .apply-button:focus-visible,
 .apply-all-button:focus-visible,
 .view-tab:focus-visible,
+.view-panel:focus-visible,
 .remove-guideline-button:focus-visible,
 .add-guideline-button:focus-visible,
 .save-guidelines-button:focus-visible,

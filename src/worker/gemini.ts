@@ -1,9 +1,4 @@
-import {
-  STARTER_GUIDELINES,
-  type AuditRequest,
-  type AuditResponse,
-  type Finding,
-} from "../shared/audit";
+import type { AuditRequest, AuditResponse, Finding } from "../shared/audit";
 import { auditResponseSchema } from "./schemas";
 
 const GEMINI_INTERACTIONS_URL =
@@ -19,9 +14,31 @@ const PRIMARY_MODEL_ATTEMPTS = 2;
 const FALLBACK_MODEL_ATTEMPTS = 1;
 const MODEL_REQUEST_TIMEOUT_MS = 12_000;
 const RETRYABLE_STATUSES = new Set([429, 500, 502, 503, 504]);
-const STARTER_RULE_BY_ID = new Map(
-  STARTER_GUIDELINES.map((guideline) => [guideline.id, guideline.rule] as const),
-);
+const SHORT_BUTTON_LABEL_RULE = "Keep button labels to three words or fewer.";
+const ERROR_EXCLAMATION_RULE = "No exclamation marks in errors or warnings.";
+
+type AuditedItem = AuditRequest["items"][number];
+type DeterministicRuleCheck = (item: AuditedItem) => boolean;
+
+function countWords(text: string) {
+  return text.trim().split(/\s+/).filter(Boolean).length;
+}
+
+function looksLikeErrorOrWarning(item: AuditedItem) {
+  return /\b(error|warning|warn|failed|failure|unable|invalid|problem|danger|attention|declined)\b|could(?:n’t|n't| not)|went wrong/i.test(
+    `${item.name} ${item.text}`,
+  );
+}
+
+// These two default rules describe facts the Worker can verify without AI.
+// Matching by the complete rule text keeps edited and custom rules model-driven.
+const DETERMINISTIC_RULE_CHECKS = new Map<string, DeterministicRuleCheck>([
+  [SHORT_BUTTON_LABEL_RULE, (item) => countWords(item.text) > 3],
+  [
+    ERROR_EXCLAMATION_RULE,
+    (item) => item.text.includes("!") && looksLikeErrorOrWarning(item),
+  ],
+]);
 
 const responseSchema = {
   type: "object",
@@ -213,27 +230,19 @@ function removeInvalidFindings(
     const originalItem = itemById.get(finding.nodeId);
     const originalText = originalItem?.text;
     const key = `${finding.nodeId}:${finding.guidelineId}`;
-    const usesUneditedStarterRule =
-      guidelineRuleById.get(finding.guidelineId) ===
-      STARTER_RULE_BY_ID.get(finding.guidelineId);
-    const wordCount = originalText?.trim().split(/\s+/).filter(Boolean).length;
-    const errorOrWarningContext = `${originalItem?.name ?? ""} ${originalText ?? ""}`;
-    const looksLikeErrorOrWarning =
-      /\b(error|warning|warn|failed|failure|unable|invalid|problem|danger|attention|declined)\b|could(?:n’t|n't| not)|went wrong/i.test(
-        errorOrWarningContext,
-      );
+    const guidelineRule = guidelineRuleById.get(finding.guidelineId);
+    const deterministicCheck =
+      guidelineRule === undefined
+        ? undefined
+        : DETERMINISTIC_RULE_CHECKS.get(guidelineRule);
 
     if (
       originalText === undefined ||
       !guidelineIds.has(finding.guidelineId) ||
       finding.suggestion === originalText ||
-      (finding.guidelineId === "g3" &&
-        usesUneditedStarterRule &&
-        wordCount !== undefined &&
-        wordCount <= 3) ||
-      (finding.guidelineId === "g8" &&
-        usesUneditedStarterRule &&
-        (!originalText.includes("!") || !looksLikeErrorOrWarning)) ||
+      (deterministicCheck !== undefined &&
+        originalItem !== undefined &&
+        !deterministicCheck(originalItem)) ||
       seen.has(key)
     ) {
       return false;

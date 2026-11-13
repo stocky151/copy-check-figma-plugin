@@ -14,13 +14,15 @@ Product copy is often reviewed after a design leaves Figma, separating the writi
 
 Copy Check brings design and engineering together through Figma plugin development, React, TypeScript, API design, an LLM integration, and a small serverless back end.
 
+Development disclosure: Built with OpenAI Codex as the coding agent; Sean Stocker directed product, design, scope, and testing.
+
 ## What it does
 
 - Scans text layers in the current selection, or the current page when nothing is selected.
 - Audits up to 100 layers against editable UX-writing guidelines.
 - Groups findings by Figma layer and jumps to a layer when its finding is selected.
 - Applies one rewrite or all available rewrites directly to the canvas.
-- Loads fonts before editing and blocks unsafe changes to mixed- or missing-font layers.
+- Loads fonts before editing and blocks unsafe changes to stale, mixed-font, or missing-font layers.
 - Treats **Apply all** as one native Figma undo operation.
 - Saves custom guidelines to the current Figma user's local plugin storage.
 - Shows intentional loading, clean, error, and applied states.
@@ -143,7 +145,8 @@ Gemini receives the minimum data needed for an audit: layer ID, layer name, visi
 
 - **Server-side model access.** A Worker adds deployment complexity, but it keeps the API key out of the downloadable plugin and centralizes validation.
 - **Structured output plus runtime validation.** TypeScript cannot verify network data at runtime, so Gemini is asked for schema-constrained JSON and Zod validates the result before it reaches Figma.
-- **Safe edits over maximum coverage.** Copy Check loads a layer's font before changing its characters. Version 1 refuses automatic edits when a layer mixes fonts or its font is unavailable.
+- **Deterministic checks where possible.** After model validation, the Worker independently verifies the two starter rules that have objective text tests: the three-word button limit and exclamation marks in error or warning copy. Checks are matched to the complete unedited rule text, so customized rules remain model-driven.
+- **Safe edits over maximum coverage.** Copy Check confirms a layer still contains the audited text and loads its font before changing its characters. Version 1 refuses automatic edits when copy has changed since the audit, a layer mixes fonts, or its font is unavailable.
 - **Native undo instead of custom history.** Applying all rewrites creates one Figma undo checkpoint, matching the host application's interaction model.
 - **Local guideline persistence.** `clientStorage` makes customization simple and private to a Figma user, but guidelines do not sync as a shared team configuration.
 - **Model fallbacks.** Retrying and falling back across Gemini Flash models improves demo reliability, with a possible latency increase during provider errors.
@@ -156,7 +159,7 @@ npm test
 npm run build
 ```
 
-Automated tests cover typed message validation, malformed requests and model output, request caps, invented model IDs, deterministic false-positive filters, retry/fallback behavior, and the IP rate limit. The final Figma regression and demo sequence is documented in [docs/final-qa.md](docs/final-qa.md).
+Automated tests cover typed message validation, malformed requests and model output, request caps, invented model IDs, deterministic starter-rule checks, retry/fallback behavior, and the IP rate limit. The final Figma regression and demo sequence is documented in [docs/final-qa.md](docs/final-qa.md).
 
 ## Current limitations
 
@@ -174,4 +177,3 @@ Automated tests cover typed message validation, malformed requests and model out
 
 - [Learning notes](docs/learning-notes.md)
 - [Final QA and demo plan](docs/final-qa.md)
-- [Original project specification](Copy%20Check%20Figma%20plugin%20spec.md)

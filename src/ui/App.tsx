@@ -1,4 +1,10 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type KeyboardEvent,
+} from "react";
 import {
   isAuditResponse,
   STARTER_GUIDELINES,
@@ -65,13 +71,15 @@ export function App() {
   const [guidelineError, setGuidelineError] = useState("");
   const [source, setSource] = useState<ScanSource>("page");
   const [scanError, setScanError] = useState("");
+  const [selectionError, setSelectionError] = useState("");
   const [auditError, setAuditError] = useState("");
   const [applyError, setApplyError] = useState("");
   const [applyingNodeId, setApplyingNodeId] = useState<string | null>(null);
   const [isApplyingAll, setIsApplyingAll] = useState(false);
   const [appliedNodeIds, setAppliedNodeIds] = useState<Set<string>>(new Set());
-  const pendingApply = useRef<{ nodeId: string; text: string } | null>(null);
+  const pendingApply = useRef<Rewrite | null>(null);
   const pendingApplyAll = useRef<Rewrite[] | null>(null);
+  const pendingSelection = useRef<string | null>(null);
   const pendingGuidelineSave = useRef(false);
 
   const requestScan = useCallback(() => {
@@ -79,6 +87,7 @@ export function App() {
     setAuditStatus("idle");
     setFindings([]);
     setScanError("");
+    setSelectionError("");
     setAuditError("");
     setApplyError("");
     setApplyingNodeId(null);
@@ -86,6 +95,7 @@ export function App() {
     setAppliedNodeIds(new Set());
     pendingApply.current = null;
     pendingApplyAll.current = null;
+    pendingSelection.current = null;
     pendingGuidelineSave.current = false;
     setGuidelineSaveStatus("idle");
     setGuidelineError("");
@@ -101,7 +111,10 @@ export function App() {
       }
 
       if (pluginMessage.type === "error") {
-        if (pendingApply.current !== null || pendingApplyAll.current !== null) {
+        if (
+          pluginMessage.operation === "apply" ||
+          pluginMessage.operation === "apply-all"
+        ) {
           setApplyError(pluginMessage.message);
           setApplyingNodeId(null);
           setIsApplyingAll(false);
@@ -110,10 +123,16 @@ export function App() {
           return;
         }
 
-        if (pendingGuidelineSave.current) {
+        if (pluginMessage.operation === "save-guidelines") {
           setGuidelineError(pluginMessage.message);
           setGuidelineSaveStatus("error");
           pendingGuidelineSave.current = false;
+          return;
+        }
+
+        if (pluginMessage.operation === "select") {
+          setSelectionError(pluginMessage.message);
+          pendingSelection.current = null;
           return;
         }
 
@@ -206,10 +225,24 @@ export function App() {
         return;
       }
 
+      if (pluginMessage.type === "selected") {
+        if (pendingSelection.current !== pluginMessage.nodeId) {
+          setSelectionError(
+            "Copy Check received an unexpected layer-selection confirmation.",
+          );
+        } else {
+          setSelectionError("");
+        }
+        pendingSelection.current = null;
+        return;
+      }
+
       setItems(pluginMessage.items);
       setSource(pluginMessage.source);
       setGuidelines(pluginMessage.guidelines);
       setScanStatus("ready");
+      setSelectionError("");
+      pendingSelection.current = null;
     }
 
     window.addEventListener("message", handleMessage);
@@ -219,21 +252,33 @@ export function App() {
   }, [requestScan]);
 
   function selectLayer(nodeId: string) {
+    if (pendingSelection.current !== null) {
+      return;
+    }
+
+    pendingSelection.current = nodeId;
+    setSelectionError("");
     sendToPlugin({ type: "select", nodeId });
   }
 
   function applyFinding(finding: Finding) {
-    pendingApply.current = {
+    const item = items.find((candidate) => candidate.id === finding.nodeId);
+    if (item === undefined) {
+      setApplyError(
+        "That audited layer is no longer available. Refresh before applying a rewrite.",
+      );
+      return;
+    }
+
+    const rewrite: Rewrite = {
       nodeId: finding.nodeId,
       text: finding.suggestion,
+      expectedText: item.text,
     };
+    pendingApply.current = rewrite;
     setApplyError("");
     setApplyingNodeId(finding.nodeId);
-    sendToPlugin({
-      type: "apply",
-      nodeId: finding.nodeId,
-      text: finding.suggestion,
-    });
+    sendToPlugin({ type: "apply", ...rewrite });
   }
 
   function applyAll(rewrites: Rewrite[]) {
@@ -355,6 +400,26 @@ export function App() {
     isApplyingAll ||
     guidelineSaveStatus === "saving";
 
+  function handleTabKeyDown(event: KeyboardEvent<HTMLButtonElement>) {
+    let nextView: View | null = null;
+
+    if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
+      nextView = view === "audit" ? "guidelines" : "audit";
+    } else if (event.key === "Home") {
+      nextView = "audit";
+    } else if (event.key === "End") {
+      nextView = "guidelines";
+    }
+
+    if (nextView === null) {
+      return;
+    }
+
+    event.preventDefault();
+    setView(nextView);
+    document.getElementById(`${nextView}-tab`)?.focus();
+  }
+
   return (
     <main className="app-shell">
       <header className="app-header">
@@ -376,64 +441,91 @@ export function App() {
         )}
       </header>
 
-      <nav className="view-tabs" aria-label="Copy Check views">
+      <div className="view-tabs" aria-label="Copy Check views" role="tablist">
         <button
+          aria-controls="audit-panel"
           aria-selected={view === "audit"}
           className={view === "audit" ? "view-tab view-tab--active" : "view-tab"}
+          id="audit-tab"
           onClick={() => setView("audit")}
+          onKeyDown={handleTabKeyDown}
           role="tab"
+          tabIndex={view === "audit" ? 0 : -1}
           type="button"
         >
           Audit
         </button>
         <button
+          aria-controls="guidelines-panel"
           aria-selected={view === "guidelines"}
           className={
             view === "guidelines" ? "view-tab view-tab--active" : "view-tab"
           }
+          id="guidelines-tab"
           onClick={() => setView("guidelines")}
+          onKeyDown={handleTabKeyDown}
           role="tab"
+          tabIndex={view === "guidelines" ? 0 : -1}
           type="button"
         >
           Guidelines
           <span>{guidelines.length}</span>
         </button>
-      </nav>
+      </div>
 
-      {view === "audit" && (
-        <AuditView
-          appliedNodeIds={appliedNodeIds}
-          applyingNodeId={applyingNodeId}
-          applyError={applyError}
-          auditError={auditError}
-          auditStatus={auditStatus}
-          findings={findings}
-          guidelines={guidelines}
-          isApplyingAll={isApplyingAll}
-          items={items}
-          onApplyAll={applyAll}
-          onApplyFinding={applyFinding}
-          onCheckCopy={checkCopy}
-          onRequestScan={requestScan}
-          onSelectLayer={selectLayer}
-          scanError={scanError}
-          scanStatus={scanStatus}
-          source={source}
-        />
-      )}
+      <div
+        aria-labelledby="audit-tab"
+        className="view-panel"
+        hidden={view !== "audit"}
+        id="audit-panel"
+        role="tabpanel"
+        tabIndex={0}
+      >
+        {view === "audit" && (
+          <AuditView
+            appliedNodeIds={appliedNodeIds}
+            applyingNodeId={applyingNodeId}
+            applyError={applyError}
+            auditError={auditError}
+            auditStatus={auditStatus}
+            findings={findings}
+            guidelines={guidelines}
+            isApplyingAll={isApplyingAll}
+            items={items}
+            onApplyAll={applyAll}
+            onApplyFinding={applyFinding}
+            onCheckCopy={checkCopy}
+            onRequestScan={requestScan}
+            onSelectLayer={selectLayer}
+            scanError={scanError}
+            scanStatus={scanStatus}
+            selectionError={selectionError}
+            source={source}
+          />
+        )}
+      </div>
 
-      {view === "guidelines" && (
-        <GuidelinesView
-          guidelineError={guidelineError}
-          guidelines={guidelines}
-          onAddGuideline={addGuideline}
-          onRemoveGuideline={removeGuideline}
-          onRestoreDefaults={restoreDefaultGuidelines}
-          onSave={saveGuidelines}
-          onUpdateGuideline={updateGuideline}
-          saveStatus={guidelineSaveStatus}
-        />
-      )}
+      <div
+        aria-labelledby="guidelines-tab"
+        className="view-panel"
+        hidden={view !== "guidelines"}
+        id="guidelines-panel"
+        role="tabpanel"
+        tabIndex={0}
+      >
+        {view === "guidelines" && (
+          <GuidelinesView
+            guidelineError={guidelineError}
+            guidelines={guidelines}
+            onAddGuideline={addGuideline}
+            onRemoveGuideline={removeGuideline}
+            onRestoreDefaults={restoreDefaultGuidelines}
+            onSave={saveGuidelines}
+            onUpdateGuideline={updateGuideline}
+            saveStatus={guidelineSaveStatus}
+          />
+        )}
+      </div>
     </main>
   );
 }

@@ -1,6 +1,7 @@
 import {
   isGuidelineList,
   isUiToPluginMessage,
+  type PluginOperation,
   type PluginToUiMessage,
   type Rewrite,
   type ScanSource,
@@ -111,6 +112,12 @@ async function prepareRewrite(rewrite: Rewrite): Promise<PreparedRewrite> {
     throw new Error("That text layer is no longer available.");
   }
 
+  if (node.characters !== rewrite.expectedText) {
+    throw new Error(
+      `“${node.name}” changed after this audit. Refresh and check the copy again before applying its rewrite.`,
+    );
+  }
+
   if (node.hasMissingFont) {
     throw new Error(`“${node.name}” uses a missing font and must be edited manually.`);
   }
@@ -157,20 +164,20 @@ async function applyRewrites(rewrites: Rewrite[]) {
   figma.viewport.scrollAndZoomIntoView(nodes);
 }
 
-function sendError(error: unknown) {
+function sendError(error: unknown, operation: PluginOperation) {
   const message =
     error instanceof Error
       ? error.message
       : typeof error === "string"
         ? error
         : "Copy Check encountered an error.";
-  const response: PluginToUiMessage = { type: "error", message };
+  const response: PluginToUiMessage = { type: "error", message, operation };
   figma.ui.postMessage(response);
 }
 
 figma.ui.onmessage = async (message: unknown) => {
   if (!isUiToPluginMessage(message)) {
-    sendError(new Error("Copy Check received an unexpected message."));
+    sendError(new Error("Copy Check received an unexpected message."), "unknown");
     return;
   }
 
@@ -186,7 +193,13 @@ figma.ui.onmessage = async (message: unknown) => {
     }
 
     if (message.type === "apply") {
-      await applyRewrites([{ nodeId: message.nodeId, text: message.text }]);
+      await applyRewrites([
+        {
+          nodeId: message.nodeId,
+          text: message.text,
+          expectedText: message.expectedText,
+        },
+      ]);
       const response: PluginToUiMessage = {
         type: "applied",
         nodeId: message.nodeId,
@@ -216,7 +229,12 @@ figma.ui.onmessage = async (message: unknown) => {
     }
 
     await selectNode(message.nodeId);
+    const response: PluginToUiMessage = {
+      type: "selected",
+      nodeId: message.nodeId,
+    };
+    figma.ui.postMessage(response);
   } catch (error) {
-    sendError(error);
+    sendError(error, message.type);
   }
 };

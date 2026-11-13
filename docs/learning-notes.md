@@ -18,7 +18,7 @@ TypeScript adds type checking to JavaScript. The types are removed during the bu
 
 ### React
 
-React builds the panel interface from components. `App.tsx` stores connection status as state, renders a button, and updates the interface when a message arrives.
+React builds the panel interface from components. `App.tsx` stores scan, audit, editing, and guideline states, then updates the interface when user actions, Worker responses, or plugin messages arrive.
 
 ### The two Figma plugin environments
 
@@ -58,6 +58,8 @@ TypeScript checks our source code but cannot prove that network data is valid at
 
 The Worker asks Gemini's Interactions API for JSON matching a specific schema. Structured output makes the response more predictable, but the Worker still validates it. Findings with node or guideline IDs absent from the original request are dropped before they can reach the plugin.
 
+Two unedited starter rules can also be checked deterministically: whether a label exceeds three words, and whether error or warning copy contains an exclamation mark. The Worker uses named checks keyed by the complete rule text to reject model claims contradicted by the submitted copy. An edited rule no longer matches that exact text and remains model-driven.
+
 ## Connected product workflow
 
 ### React state and asynchronous requests
@@ -66,7 +68,7 @@ The panel keeps the scan, audit, apply, and guideline-editor states in React. Ne
 
 ### Applying copy safely
 
-Figma text cannot be changed until its font is loaded. The main thread checks that a layer uses one available font, loads it with `figma.loadFontAsync`, and only then replaces `characters`. Apply-all prepares every valid change before committing them together and calls `figma.commitUndo()` once, so Figma can reverse the batch with one native Undo command.
+Figma text cannot be changed until its font is loaded. The main thread first confirms that the layer still contains the exact text that was audited, preventing a stale suggestion from overwriting a newer manual edit. It then checks that the layer uses one available font, loads it with `figma.loadFontAsync`, and only then replaces `characters`. Apply-all prepares every valid change before committing them together and calls `figma.commitUndo()` once, so Figma can reverse the batch with one native Undo command.
 
 ### Guideline persistence
 

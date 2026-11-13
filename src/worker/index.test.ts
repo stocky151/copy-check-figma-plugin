@@ -319,4 +319,67 @@ describe("Copy Check Worker", () => {
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toEqual({ findings: [] });
   });
+
+  it("leaves edited rules model-driven instead of applying a starter-rule check", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          status: "completed",
+          steps: [
+            {
+              type: "model_output",
+              content: [
+                {
+                  type: "text",
+                  text: JSON.stringify({
+                    findings: [
+                      {
+                        nodeId: "1:2",
+                        guidelineId: "g3",
+                        issue: "This custom rule requires a shorter label.",
+                        suggestion: "Sign in",
+                      },
+                    ],
+                  }),
+                },
+              ],
+            },
+          ],
+        }),
+        { status: 200, headers: { "Content-Type": "application/json" } },
+      ),
+    );
+
+    const response = await worker.fetch(
+      auditRequest({
+        items: [
+          {
+            id: "1:2",
+            name: "Button",
+            text: "SIGN IN NOW!",
+            editable: true,
+          },
+        ],
+        guidelines: [
+          {
+            id: "g3",
+            rule: "Button labels must contain no more than two words.",
+          },
+        ],
+      }),
+      { GEMINI_API_KEY: "test-key" },
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({
+      findings: [
+        {
+          nodeId: "1:2",
+          guidelineId: "g3",
+          issue: "This custom rule requires a shorter label.",
+          suggestion: "Sign in",
+        },
+      ],
+    });
+  });
 });

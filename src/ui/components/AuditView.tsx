@@ -20,6 +20,7 @@ type AuditViewProps = {
   onSelectLayer: (nodeId: string) => void;
   scanError: string;
   scanStatus: ScanStatus;
+  selectionError: string;
   source: ScanSource;
 };
 
@@ -44,6 +45,7 @@ export function AuditView({
   onSelectLayer,
   scanError,
   scanStatus,
+  selectionError,
   source,
 }: AuditViewProps) {
   const findingsByNodeId = new Map<string, Finding[]>();
@@ -71,6 +73,7 @@ export function AuditView({
     actionableRewriteByNodeId.set(finding.nodeId, {
       nodeId: finding.nodeId,
       text: finding.suggestion,
+      expectedText: item.text,
     });
   }
   const actionableRewrites = [...actionableRewriteByNodeId.values()];
@@ -104,6 +107,12 @@ export function AuditView({
             </div>
             <p>Found in {sourceLabel(source)}</p>
           </section>
+
+          {selectionError.length > 0 && (
+            <div className="inline-error" role="alert">
+              {selectionError}
+            </div>
+          )}
 
           {items.length === 0 ? (
             <section className="message-state">

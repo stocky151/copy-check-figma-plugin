@@ -43,9 +43,15 @@ In **Guidelines**, add: `Button labels must not use the word "Continue". Suggest
 - [x] Saved guidelines survive closing and reopening the plugin.
 - [x] Turning the network off before an audit shows the intentional retry state; turning it back on makes **Try again** recover.
 
+## Post-review regression
+
+- [x] Run an audit, manually change a flagged layer on the canvas, then click **Apply**. Confirm Copy Check preserves the newer text and asks for a refresh.
+- [x] Run an audit, delete a flagged layer, then click its finding header. Confirm the findings stay visible and the missing-layer message appears inline rather than replacing the audit with a scan error.
+- [x] Focus the **Audit** tab and use Left/Right Arrow, Home, and End. Confirm focus and the visible panel move together.
+
 ## 50-layer scan check
 
-The specification calls for one higher-volume document test. Create ten simple text layers inside a frame, then duplicate that set four times so the frame contains 50 text nodes total. Select the outer frame and confirm:
+For the higher-volume document test, create ten simple text layers inside a frame, then duplicate that set four times so the frame contains 50 text nodes total. Select the outer frame and confirm:
 
 - [x] the plugin reports 50 text layers;
 - [x] the panel remains responsive;
