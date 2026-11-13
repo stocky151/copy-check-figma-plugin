@@ -12,7 +12,7 @@ Copy Check is an AI-assisted Figma plugin that audits UI text against editable U
 
 Product copy is often reviewed after a design leaves Figma, separating the writing decision from its visual context. Copy Check keeps that review loop on the canvas: a designer can inspect a frame, find likely UX-writing problems, jump to the affected layer, and apply a rewrite without copying text between tools.
 
-This is a focused portfolio project built to demonstrate the intersection of design and engineering: Figma plugin development, React, TypeScript, API design, an LLM integration, and a small serverless back end.
+Copy Check brings design and engineering together through Figma plugin development, React, TypeScript, API design, an LLM integration, and a small serverless back end.
 
 ## What it does
 

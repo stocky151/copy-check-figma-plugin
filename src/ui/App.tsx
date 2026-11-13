@@ -12,14 +12,14 @@ import {
   type TextItem,
   type UiToPluginMessage,
 } from "../shared/messages";
+import { AuditView } from "./components/AuditView";
+import { GuidelinesView } from "./components/GuidelinesView";
+import type { AuditStatus, GuidelineSaveStatus, ScanStatus } from "./types";
 
 const AUDIT_ENDPOINT =
   "https://copy-check-api.copy-check-figma-plugin.workers.dev/audit";
 
-type ScanStatus = "loading" | "ready" | "error";
-type AuditStatus = "idle" | "loading" | "success" | "error";
 type View = "audit" | "guidelines";
-type GuidelineSaveStatus = "idle" | "saving" | "saved" | "error";
 
 function readPluginMessage(event: MessageEvent<unknown>): unknown {
   if (typeof event.data !== "object" || event.data === null) {
@@ -32,10 +32,6 @@ function readPluginMessage(event: MessageEvent<unknown>): unknown {
 
 function sendToPlugin(pluginMessage: UiToPluginMessage) {
   parent.postMessage({ pluginMessage }, "https://www.figma.com");
-}
-
-function sourceLabel(source: ScanSource) {
-  return source === "selection" ? "selected layers" : "current page";
 }
 
 function auditErrorMessage(status: number, payload: unknown) {
@@ -352,34 +348,6 @@ export function App() {
     }
   }
 
-  const findingsByNodeId = new Map<string, Finding[]>();
-  for (const finding of findings) {
-    const nodeFindings = findingsByNodeId.get(finding.nodeId) ?? [];
-    nodeFindings.push(finding);
-    findingsByNodeId.set(finding.nodeId, nodeFindings);
-  }
-
-  const activeFindingCount = findings.filter(
-    (finding) => !appliedNodeIds.has(finding.nodeId),
-  ).length;
-  const itemById = new Map(items.map((item) => [item.id, item] as const));
-  const actionableRewriteByNodeId = new Map<string, Rewrite>();
-  for (const finding of findings) {
-    const item = itemById.get(finding.nodeId);
-    if (
-      appliedNodeIds.has(finding.nodeId) ||
-      item?.editable !== true ||
-      actionableRewriteByNodeId.has(finding.nodeId)
-    ) {
-      continue;
-    }
-
-    actionableRewriteByNodeId.set(finding.nodeId, {
-      nodeId: finding.nodeId,
-      text: finding.suggestion,
-    });
-  }
-  const actionableRewrites = [...actionableRewriteByNodeId.values()];
   const busy =
     scanStatus === "loading" ||
     auditStatus === "loading" ||
@@ -432,312 +400,39 @@ export function App() {
         </button>
       </nav>
 
-      {view === "audit" && scanStatus === "loading" && (
-        <section className="message-state" aria-live="polite">
-          <div className="spinner" aria-hidden="true" />
-          <h2>Scanning text layers…</h2>
-          <p>Reading the current selection from Figma.</p>
-        </section>
-      )}
-
-      {view === "audit" && scanStatus === "error" && (
-        <section className="message-state message-state--error" role="alert">
-          <h2>Couldn’t scan this selection</h2>
-          <p>{scanError}</p>
-          <button className="secondary-button" onClick={requestScan} type="button">
-            Try again
-          </button>
-        </section>
-      )}
-
-      {view === "audit" && scanStatus === "ready" && (
-        <>
-          <section className="scan-summary" aria-live="polite">
-            <div>
-              <strong>{items.length}</strong>
-              <span>{items.length === 1 ? "text layer" : "text layers"}</span>
-            </div>
-            <p>Found in {sourceLabel(source)}</p>
-          </section>
-
-          {items.length === 0 ? (
-            <section className="message-state">
-              <h2>No copy found</h2>
-              <p>Select a frame containing text, then press Refresh.</p>
-            </section>
-          ) : (
-            <>
-              {auditStatus !== "loading" && (
-                <button
-                  className="primary-button"
-                  disabled={applyingNodeId !== null || isApplyingAll}
-                  onClick={checkCopy}
-                  type="button"
-                >
-                  {auditStatus === "success" ? "Check again" : "Check copy"}
-                </button>
-              )}
-
-              {auditStatus === "idle" && (
-                <section className="results" aria-label="Scanned text layers">
-                  <p className="section-label">
-                    Ready to check against {guidelines.length} guidelines
-                  </p>
-                  <div className="result-list">
-                    {items.map((item) => (
-                      <button
-                        className="result-row"
-                        key={item.id}
-                        onClick={() => selectLayer(item.id)}
-                        type="button"
-                      >
-                        <span className="result-content">
-                          <span className="layer-name">{item.name}</span>
-                          <span className="layer-copy">{item.text}</span>
-                          {!item.editable && (
-                            <span className="manual-badge">Apply manually</span>
-                          )}
-                        </span>
-                        <span className="chevron" aria-hidden="true">
-                          ›
-                        </span>
-                      </button>
-                    ))}
-                  </div>
-                </section>
-              )}
-
-              {auditStatus === "loading" && (
-                <section className="message-state audit-state" aria-live="polite">
-                  <div className="spinner" aria-hidden="true" />
-                  <h2>Checking your copy…</h2>
-                  <p>
-                    Comparing {items.length} {items.length === 1 ? "layer" : "layers"}
-                    {" "}against {guidelines.length} guidelines.
-                  </p>
-                </section>
-              )}
-
-              {auditStatus === "error" && (
-                <section className="message-state message-state--error" role="alert">
-                  <h2>Couldn’t check this copy</h2>
-                  <p>{auditError}</p>
-                  <button className="secondary-button" onClick={checkCopy} type="button">
-                    Try again
-                  </button>
-                </section>
-              )}
-
-              {auditStatus === "success" && findings.length === 0 && (
-                <section className="message-state message-state--success" aria-live="polite">
-                  <span className="success-icon" aria-hidden="true">
-                    ✓
-                  </span>
-                  <h2>No issues found</h2>
-                  <p>This copy follows all {guidelines.length} guidelines.</p>
-                </section>
-              )}
-
-              {auditStatus === "success" && findings.length > 0 && (
-                <section className="findings" aria-label="Copy findings">
-                  <div className="findings-heading">
-                    <p className="section-label">Findings</p>
-                    <div className="findings-actions">
-                      <span className="finding-count">
-                        {activeFindingCount}{" "}
-                        {activeFindingCount === 1 ? "issue" : "issues"} remaining
-                      </span>
-                      {actionableRewrites.length > 1 && (
-                        <button
-                          className="apply-all-button"
-                          disabled={applyingNodeId !== null || isApplyingAll}
-                          onClick={() => applyAll(actionableRewrites)}
-                          type="button"
-                        >
-                          {isApplyingAll
-                            ? "Applying all…"
-                            : `Apply all (${actionableRewrites.length})`}
-                        </button>
-                      )}
-                    </div>
-                  </div>
-
-                  {applyError.length > 0 && (
-                    <div className="inline-error" role="alert">
-                      {applyError}
-                    </div>
-                  )}
-
-                  {items.map((item) => {
-                    const nodeFindings = findingsByNodeId.get(item.id);
-                    if (nodeFindings === undefined) {
-                      return null;
-                    }
-
-                    const isApplied = appliedNodeIds.has(item.id);
-
-                    return (
-                      <article
-                        className={`finding-group${isApplied ? " finding-group--applied" : ""}`}
-                        key={item.id}
-                      >
-                        <button
-                          className="finding-target"
-                          onClick={() => selectLayer(item.id)}
-                          type="button"
-                        >
-                          <span className="result-content">
-                            <span className="layer-name">{item.name}</span>
-                            <span className="layer-copy">{item.text}</span>
-                          </span>
-                          <span className="chevron" aria-hidden="true">
-                            ›
-                          </span>
-                        </button>
-
-                        {isApplied ? (
-                          <div className="applied-confirmation" aria-live="polite">
-                            <span className="applied-check" aria-hidden="true">
-                              ✓
-                            </span>
-                            <div>
-                              <strong>Rewrite applied</strong>
-                              <p>Use Figma’s Undo command to reverse this change.</p>
-                            </div>
-                          </div>
-                        ) : nodeFindings.map((finding) => {
-                          const guideline = guidelines.find(
-                            (candidate) => candidate.id === finding.guidelineId,
-                          );
-
-                          return (
-                            <div
-                              className="finding-detail"
-                              key={`${finding.nodeId}:${finding.guidelineId}`}
-                            >
-                              <p className="rule-label">
-                                {finding.guidelineId.toUpperCase()}
-                                {guideline === undefined ? "" : ` · ${guideline.rule}`}
-                              </p>
-                              <p className="finding-issue">{finding.issue}</p>
-                              <div className="suggestion">
-                                <div>
-                                  <span>Suggested rewrite</span>
-                                  <p>{finding.suggestion}</p>
-                                </div>
-                                {item.editable ? (
-                                  <button
-                                    className="apply-button"
-                                    disabled={applyingNodeId !== null || isApplyingAll}
-                                    onClick={() => applyFinding(finding)}
-                                    type="button"
-                                  >
-                                    {applyingNodeId === item.id ? "Applying…" : "Apply"}
-                                  </button>
-                                ) : (
-                                  <span className="manual-badge">Apply manually</span>
-                                )}
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </article>
-                    );
-                  })}
-                </section>
-              )}
-            </>
-          )}
-        </>
+      {view === "audit" && (
+        <AuditView
+          appliedNodeIds={appliedNodeIds}
+          applyingNodeId={applyingNodeId}
+          applyError={applyError}
+          auditError={auditError}
+          auditStatus={auditStatus}
+          findings={findings}
+          guidelines={guidelines}
+          isApplyingAll={isApplyingAll}
+          items={items}
+          onApplyAll={applyAll}
+          onApplyFinding={applyFinding}
+          onCheckCopy={checkCopy}
+          onRequestScan={requestScan}
+          onSelectLayer={selectLayer}
+          scanError={scanError}
+          scanStatus={scanStatus}
+          source={source}
+        />
       )}
 
       {view === "guidelines" && (
-        <section className="guidelines-view" aria-label="Guideline editor">
-          <div className="guidelines-intro">
-            <h2>Your guidelines</h2>
-            <p>
-              Edit the rules Gemini uses during an audit. They are saved locally
-              for this Figma plugin.
-            </p>
-          </div>
-
-          <div className="guideline-list">
-            {guidelines.map((guideline, index) => (
-              <div className="guideline-editor" key={guideline.id}>
-                <div className="guideline-editor-header">
-                  <label htmlFor={`guideline-${index}`}>Rule {index + 1}</label>
-                  <button
-                    aria-label={`Remove rule ${index + 1}`}
-                    className="remove-guideline-button"
-                    disabled={guidelines.length === 1}
-                    onClick={() => removeGuideline(guideline.id)}
-                    title={
-                      guidelines.length === 1
-                        ? "Copy Check needs at least one guideline"
-                        : "Remove guideline"
-                    }
-                    type="button"
-                  >
-                    Remove
-                  </button>
-                </div>
-                <textarea
-                  id={`guideline-${index}`}
-                  maxLength={500}
-                  onChange={(event) =>
-                    updateGuideline(guideline.id, event.target.value)
-                  }
-                  rows={3}
-                  value={guideline.rule}
-                />
-                <span className="character-count">{guideline.rule.length}/500</span>
-              </div>
-            ))}
-          </div>
-
-          <div className="guideline-list-footer">
-            <button
-              className="add-guideline-button"
-              disabled={guidelines.length >= 20}
-              onClick={addGuideline}
-              type="button"
-            >
-              + Add guideline
-            </button>
-            <span>{guidelines.length}/20 rules</span>
-          </div>
-
-          {guidelineSaveStatus === "saved" && (
-            <div className="inline-success" role="status">
-              Guidelines saved on this device.
-            </div>
-          )}
-
-          {guidelineSaveStatus === "error" && (
-            <div className="inline-error" role="alert">
-              {guidelineError}
-            </div>
-          )}
-
-          <div className="guideline-actions">
-            <button
-              className="secondary-button"
-              disabled={guidelineSaveStatus === "saving"}
-              onClick={restoreDefaultGuidelines}
-              type="button"
-            >
-              Restore defaults
-            </button>
-            <button
-              className="save-guidelines-button"
-              disabled={guidelineSaveStatus === "saving"}
-              onClick={saveGuidelines}
-              type="button"
-            >
-              {guidelineSaveStatus === "saving" ? "Saving…" : "Save guidelines"}
-            </button>
-          </div>
-        </section>
+        <GuidelinesView
+          guidelineError={guidelineError}
+          guidelines={guidelines}
+          onAddGuideline={addGuideline}
+          onRemoveGuideline={removeGuideline}
+          onRestoreDefaults={restoreDefaultGuidelines}
+          onSave={saveGuidelines}
+          onUpdateGuideline={updateGuideline}
+          saveStatus={guidelineSaveStatus}
+        />
       )}
     </main>
   );
